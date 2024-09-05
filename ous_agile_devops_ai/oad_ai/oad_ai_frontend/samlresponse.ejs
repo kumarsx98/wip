@@ -1,0 +1,16 @@
+
+<!DOCTYPE html>
+<html>
+<body>
+    <form method="post" action="<%= AcsUrl %>">
+        <input type="hidden" name="SAMLResponse" value="<%= SAMLResponse %>" />
+        <% if (RelayState) { %>
+        <input type="hidden" name="RelayState" value="<%= RelayState %>" />
+        <% } %>
+        <input type="submit" value="Submit" />
+    </form>
+    <script>
+        document.forms[0].submit();
+    </script>
+</body>
+</html>

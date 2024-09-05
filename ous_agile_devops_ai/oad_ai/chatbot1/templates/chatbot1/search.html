@@ -1,0 +1,99 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatbot</title>
+    <style>
+        body {
+            background-color: #000; /* Set the background color to black */
+            font-family: Arial, sans-serif;
+            color: #fff; /* Set the text color to white */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 50%;
+            max-width: 600px;
+            background-color: #222; /* Dark gray for container background */
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        h1 {
+            color: #fff;
+            text-align: center;
+        }
+        input[type="text"], input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #fff;
+        }
+        input[type="text"]::placeholder {
+            color: #aaa; /* Placeholder text color */
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        .chat {
+            margin-top: 20px;
+        }
+        .chat-box {
+            display: flex;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .chat-box.question {
+            background-color: #005f6b;
+            justify-content: flex-end;
+        }
+        .chat-box.answer {
+            background-color: #4CAF50;
+            justify-content: flex-start;
+        }
+        .chat-box span {
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        img {
+            width: 50%; /* Reduce the size of the image */
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chatbot</h1>
+        <img src="{% static 'chatbot/your_image.jpg' %}" alt="Chatbot Image">
+        <form method="post">
+            {% csrf_token %}
+            <label for="question">Ask a question:</label>
+            <input type="text" id="question" name="question" placeholder="Type your question here, for example, solve something, give me ideas" required>
+            <input type="submit" value="Submit">
+        </form>
+        <div class="chat">
+            {% if question %}
+            <div class="chat-box question">
+                <span>{{ question }}</span>
+            </div>
+            <div class="chat-box answer">
+                <span>{{ response|safe }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
