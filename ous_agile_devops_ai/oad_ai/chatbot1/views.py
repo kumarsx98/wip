@@ -18,10 +18,7 @@ from django.conf import settings
 from django.shortcuts import render, redirect
 from django.views.decorators.csrf import csrf_exempt
 from cryptography.fernet import Fernet
-from django.core.files.base import ContentFile
 from django.views.decorators.http import require_GET, require_http_methods
-from rest_framework import status
-from rest_framework.views import APIView
 from saml2.config import SPConfig
 from saml2.metadata import create_metadata_string
 
@@ -126,6 +123,7 @@ def get_api_headers():
         "Authorization": f"Bearer {settings.AUTH_TOKEN}"
     }
 
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def list_documents(request, source):
@@ -137,10 +135,34 @@ def list_documents(request, source):
         response.raise_for_status()
 
         documents = response.json()
+
+        # Add created and modified timestamps if they don't exist
+        for doc in documents['documents']:
+            if 'created_at' not in doc:
+                doc['created_at'] = doc.get('timestamp') or None
+            if 'modified_at' not in doc:
+                doc['modified_at'] = doc.get('timestamp') or None
+
         return JsonResponse({'documents': documents})
     except requests.RequestException as e:
         logger.error(f"Error fetching documents for source {source}: {str(e)}")
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def view_document_content(request, source, document_id):
+    try:
+        headers = get_api_headers()
+        url = f"{settings.ILIAD_URL}/api/v1/sources/{source}/documents/{document_id}/content"
+
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        content = response.json()
+        return JsonResponse({'content': content})
+    except requests.RequestException as e:
+        logger.error(f"Error fetching document content for source {source}, document {document_id}: {str(e)}")
+        return JsonResponse({'error': 'Failed to fetch document content'}, status=500)
 
 
 @csrf_exempt

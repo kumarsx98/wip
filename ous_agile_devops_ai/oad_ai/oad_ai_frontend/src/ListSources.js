@@ -12,6 +12,33 @@ function ListSources() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadSteps, setUploadSteps] = useState([]);
+  const [sortField, setSortField] = useState('filename');
+  const [sortDirection, setSortDirection] = useState('asc');
+
+
+  const handleSort = (field) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortDocuments = (docs) => {
+    return docs.sort((a, b) => {
+      let comparison = 0;
+      if (a[sortField] < b[sortField]) {
+        comparison = -1;
+      } else if (a[sortField] > b[sortField]) {
+        comparison = 1;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+
+
 
   const refreshData = async () => {
     await fetchSources();
@@ -52,35 +79,37 @@ function ListSources() {
   };
 
   const fetchDocuments = async (source) => {
-    setIsLoading(true);
-    setMessage('');
-    setSelectedSource(source);
+  setIsLoading(true);
+  setMessage('');
+  setSelectedSource(source);
 
-    try {
-      const response = await axios.get(`/chatbot1/list-documents/${source}/`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken'),
-        },
-        withCredentials: true
-      });
+  try {
+    const response = await axios.get(`/chatbot1/list-documents/${source}/`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+      },
+      withCredentials: true
+    });
 
-      if (response.status === 200 && response.data.documents) {
-        setDocuments(response.data.documents.documents.map(doc => ({
-          ...doc,
-          path: doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`
-        })));
-        setMessage(response.data.documents.documents.length === 0 ? 'No documents found.' : '');
-      } else {
-        setMessage('An error occurred while fetching the documents.');
-      }
-    } catch (error) {
-      console.error('Error during document fetching:', error);
-      setMessage(error.response?.data?.error || 'An error occurred while fetching the documents.');
-    } finally {
-      setIsLoading(false);
+    if (response.status === 200 && response.data.documents) {
+      setDocuments(response.data.documents.documents.map(doc => ({
+        ...doc,
+        path: doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`,
+        created_at: doc.created_at || null,
+        modified_at: doc.modified_at || null
+      })));
+      setMessage(response.data.documents.documents.length === 0 ? 'No documents found.' : '');
+    } else {
+      setMessage('An error occurred while fetching the documents.');
     }
-  };
+  } catch (error) {
+    console.error('Error during document fetching:', error);
+    setMessage(error.response?.data?.error || 'An error occurred while fetching the documents.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const getCookie = (name) => {
     let cookieValue = null;
@@ -234,37 +263,63 @@ function ListSources() {
     </div>
   );
 
-  const renderDocuments = () => (
-    <div>
-      <h2 style={{ color: '#444', marginTop: '20px' }}>Documents in {selectedSource}</h2>
-      {documents.length > 0 ? (
-        <>
-          <p>Total documents: {documents.length}</p>
-          <ul style={{ listStyleType: 'none', padding: 0 }}>
-            {documents.map((document, index) => (
-              <li key={document.id || index} style={{ marginBottom: '10px', border: '1px solid #ccc', padding: '10px', borderRadius: '4px' }}>
-                <h4 style={{ margin: '0' }}>{document.filename}</h4>
-                {document.path && (
-                  <p style={{ margin: '5px 0 0', fontSize: '0.9em', color: '#666' }}>
-                    Path: <a href={document.path} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>{document.path}</a>
-                  </p>
-                )}
-              </li>
+ const renderDocuments = () => (
+  <div>
+    <h2 style={{ color: '#444', marginTop: '20px' }}>Documents in {selectedSource}</h2>
+    {documents.length > 0 ? (
+      <>
+        <p>Total documents: {documents.length}</p>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8f9fa' }}>
+              <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('filename')}>
+                Filename {sortField === 'filename' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('path')}>
+                Path {sortField === 'path' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('created_at')}>
+                Created At {sortField === 'created_at' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('modified_at')}>
+                Modified At {sortField === 'modified_at' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortDocuments(documents).map((document, index) => (
+              <tr key={document.id || index}>
+                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.filename}</td>
+                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
+                  {document.path && (
+                    <a href={document.path} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>
+                      {document.path}
+                    </a>
+                  )}
+                </td>
+                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
+                  {document.created_at ? new Date(document.created_at).toLocaleString() : 'N/A'}
+                </td>
+                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
+                  {document.modified_at ? new Date(document.modified_at).toLocaleString() : 'N/A'}
+                </td>
+              </tr>
             ))}
-          </ul>
-        </>
-      ) : (
-        <p>No documents available in this source.</p>
-      )}
+          </tbody>
+        </table>
+      </>
+    ) : (
+      <p>No documents available in this source.</p>
+    )}
 
-      <button onClick={() => setSelectedSource(null)} style={{ marginTop: '20px', padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
-        Back to Sources
-      </button>
-      <button onClick={handleSyncSource} style={{ marginTop: '20px', padding: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-        Sync Source
-      </button>
-    </div>
-  );
+    <button onClick={() => setSelectedSource(null)} style={{ marginTop: '20px', padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
+      Back to Sources
+    </button>
+    <button onClick={handleSyncSource} style={{ marginTop: '20px', padding: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+      Sync Source
+    </button>
+  </div>
+);
 
   const renderUploadSection = () => (
     <div style={{ marginTop: '20px', border: '1px solid #ccc', padding: '20px', borderRadius: '4px' }}>
@@ -313,13 +368,10 @@ function ListSources() {
           <>
             {renderSourceList(globalSources, 'Global Sources')}
             {renderSourceList(privateSources, 'Private Sources')}
-            {globalSources.length === 0 && privateSources.length === 0 && (
-              <p style={{ textAlign: 'center' }}>No sources found.</p>
-            )}
           </>
         )
       )}
-      {message && <p style={{ marginTop: '20px', color: 'red' }}>{message}</p>}
+      {message && <p style={{ color: 'red', textAlign: 'center' }}>{message}</p>}
     </div>
   );
 }

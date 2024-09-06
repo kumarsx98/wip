@@ -12,15 +12,11 @@ urlpatterns = [
     path('', views.search, name='search'),
     path('create-source/', views.create_source, name='create_source'),
     path('sync-source/<str:source>/', views.sync_source, name='sync_source'),
-    #path('upload-document/<str:source_name>/', views.upload_document, name='upload_document'),
-    #path('get-documents/<str:source>/', views.get_documents, name='get_documents'),
+
     path('list-sources/', views.list_sources, name='list_sources'),
     path('list-documents/<str:source>/', views.list_documents, name='list_documents'),
-   # path('upload-document/<str:source>/', views.upload_document, name='upload_document'),
-    #path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status, name='check_upload_status'),
-    #path('process-documents/', views.trigger_document_processing, name='process_documents'),
-    #path('replace-document/<str:source>/', views.replace_document, name='replace_document'),
 
+    path('view-document-content/<str:source>/<str:document_id>/', views.view_document_content, name='view_document_content'),
     path('auto-upload/', views.auto_upload, name='auto_upload'),
     path('get-upload-status/', views.get_upload_status_view, name='get_upload_status'),
     path('start-scheduler/', views.start_scheduler_view, name='start_scheduler'),
@@ -35,7 +31,7 @@ urlpatterns = [
     path('list-sources/', views.list_sources, name='list_sources'),
     path('list-documents/<str:source>/', views.list_documents, name='list_documents'),
     path('upload-document/<str:source>/', views.upload_document, name='upload_document'),
-path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status, name='check_upload_status'),
+    path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status, name='check_upload_status'),
 
     path('', views.index, name='index'),
 ]
