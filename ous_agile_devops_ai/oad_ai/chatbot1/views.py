@@ -21,6 +21,8 @@ from cryptography.fernet import Fernet
 from django.views.decorators.http import require_GET, require_http_methods
 from saml2.config import SPConfig
 from saml2.metadata import create_metadata_string
+from .models import Source  # Make sure to import your Source model
+
 
 logger = logging.getLogger(__name__)
 
@@ -148,22 +150,6 @@ def list_documents(request, source):
         logger.error(f"Error fetching documents for source {source}: {str(e)}")
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
 
-@csrf_exempt
-@require_http_methods(["GET"])
-def view_document_content(request, source, document_id):
-    try:
-        headers = get_api_headers()
-        url = f"{settings.ILIAD_URL}/api/v1/sources/{source}/documents/{document_id}/content"
-
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-
-        content = response.json()
-        return JsonResponse({'content': content})
-    except requests.RequestException as e:
-        logger.error(f"Error fetching document content for source {source}, document {document_id}: {str(e)}")
-        return JsonResponse({'error': 'Failed to fetch document content'}, status=500)
-
 
 @csrf_exempt
 def list_sources(request):
@@ -191,23 +177,17 @@ def list_sources(request):
             }
 
             url = f"{ILIAD_URL}/api/v1/sources/"
-
             logger.info(f"Sending request to {url}")
             logger.info(f"Request headers: {headers}")
 
             # Send the request to the external API
-            resp = requests.get(
-                url=url,
-                headers=headers
-            )
-
+            resp = requests.get(url=url, headers=headers)
             logger.info(f"API response status code: {resp.status_code}")
             logger.info(f"API response body: {resp.text}")
 
             if resp.status_code == 200:
-                sources = resp.json()
-                logger.info(f"Sources fetched successfully: {sources}")
-                return JsonResponse(sources, safe=False, status=200)
+                external_sources = resp.json()
+                logger.info(f"Sources fetched successfully: {external_sources}")
             else:
                 logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
                 return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"},
@@ -218,8 +198,158 @@ def list_sources(request):
             logger.error(traceback.format_exc())
             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
+        # Fetch sources from the database
+        global_sources = Source.objects.filter(visibility='global')
+        private_sources = Source.objects.filter(visibility='private')
+
+        def serialize_source(source):
+            return {
+                'name': source.name,
+                'visibility': source.visibility,
+                'model': source.model or 'N/A',
+                'created_at': source.created_at.isoformat() if source.created_at else 'N/A',
+                'updated_at': source.updated_at.isoformat() if source.updated_at else 'N/A',
+            }
+
+        def serialize_external_source(source_name, visibility, details=None):
+            if details is None:
+                # Simulated empty details : Customize it later with actual detailed call
+                return {
+                    'name': source_name,
+                    'visibility': visibility,
+                    'model': 'N/A',
+                    'created_at': 'N/A',
+                    'updated_at': 'N/A',
+                }
+            else:
+                # Customize it according to details:
+                return {
+                    'name': source_name,
+                    'visibility': visibility,
+                    'model': details.get('embedding_model', 'N/A'),
+                    'created_at': details.get('created', 'N/A'),
+                    'updated_at': details.get('edited', 'N/A'),
+                }
+
+        global_sources_data = [serialize_source(source) for source in global_sources]
+        private_sources_data = [serialize_source(source) for source in private_sources]
+
+        # Handle external sources, simulating details fetching if needed.
+        external_global_sources = external_sources.get('global_sources', [])
+        external_private_sources = external_sources.get('private_sources', [])
+
+        # mock or fetch details
+        def fetch_external_source_details(name):
+            # Example mock - Replace with actual call if applicable.
+            return {
+                'embedding_model': 'text-embedding-ada-002',
+                'created': '2023-02-01T12:00:00Z',
+                'edited': '2023-03-01T12:00:00Z'
+            }
+
+        external_global_sources_data = [serialize_external_source(source, 'global', fetch_external_source_details(source)) for source in external_global_sources]
+        external_private_sources_data = [serialize_external_source(source, 'private', fetch_external_source_details(source)) for source in external_private_sources]
+
+        # Combine the external API sources with local database sources
+        return JsonResponse({
+            'external_sources': {
+                'global': external_global_sources_data,
+                'private': external_private_sources_data,
+            },
+            'global_sources': global_sources_data,
+            'private_sources': private_sources_data,
+        })
+
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
+
+@csrf_exempt
+def chat_with_source(request, source_name):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            question = data.get('question', '')
+            filters = data.get('filters', '{}')
+            logger.info(f"Received POST data: {data}")
+
+            if not isinstance(filters, str):
+                filters = json.dumps(filters)
+
+            # Decrypt the API key
+            try:
+                encryption_key = settings.ENCRYPTION_KEY.encode()
+                encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
+                cipher_suite = Fernet(encryption_key)
+                api_key = cipher_suite.decrypt(encrypted_api_key).decode()
+                logger.debug(f"Decrypted API Key: {api_key[:4]}****{api_key[-4:]}")
+            except Exception as e:
+                logger.error(f"Decryption failed: {e}")
+                return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
+
+            # Use the source_name directly from the URL parameter
+            source = source_name
+            logger.info(f"Using source: {source}")
+
+            # Set up the API request
+            ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
+            headers = {
+                "x-api-key": api_key,
+                "x-user-token": settings.AUTH_TOKEN
+            }
+            payload = {
+                "messages": [{"role": "user", "content": question}],
+                "filters": filters,
+                "stream": False
+            }
+
+            url = f"{ILIAD_URL}/api/v1/sources/{source}/rag"
+
+            logger.info(f"Sending request to {url}")
+            logger.debug(f"Request headers: {headers}")
+            logger.debug(f"Request payload: {json.dumps(payload, indent=2)}")
+
+            # Send the request to the external API
+            resp = requests.post(
+                url=url,
+                headers=headers,
+                json=payload
+            )
+
+            logger.info(f"API response status code: {resp.status_code}")
+            logger.info(f"API response body: {resp.text}")
+
+            if resp.status_code == 200:
+                response_data = resp.json()
+                content = response_data.get('content', 'No content in API response')
+                references = response_data.get('references', [])
+                logger.info(f"API Response content: {content}")
+                logger.info(f"API Response references: {references}")
+                response = {'content': content, 'references': references}
+            else:
+                logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
+                return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"}, status=500)
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request exception: {e}")
+            return JsonResponse({'error': str(e)}, status=500)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}")
+            return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            logger.error(traceback.format_exc())
+            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+
+        return JsonResponse({'question': question, 'response': response})
+
+    logger.warning("Invalid HTTP method used.")
+    return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
+
+
+
+
 
 
 @csrf_exempt

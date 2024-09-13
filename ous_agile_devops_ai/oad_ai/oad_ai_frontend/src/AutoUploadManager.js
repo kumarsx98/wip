@@ -1,4 +1,3 @@
-// AutoUploadManager.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
@@ -145,7 +144,7 @@ function AutoUploadManager() {
           <h3>Last Auto-Upload Response:</h3>
           <p>Status: <strong>{lastAutoUploadResponse.status}</strong></p>
           <p>Message: {lastAutoUploadResponse.message}</p>
-          {lastAutoUploadResponse.processed_files && (
+          {Array.isArray(lastAutoUploadResponse.processed_files) && (
             <p>Processed Files: {lastAutoUploadResponse.processed_files.join(', ')}</p>
           )}
         </div>
@@ -171,9 +170,7 @@ function AutoUploadManager() {
                   <td style={{ border: '1px solid white', padding: '8px' }}>{detail.source}</td>
                   <td style={{ border: '1px solid white', padding: '8px' }}>{detail.status}</td>
                   <td style={{ border: '1px solid white', padding: '8px' }}>{detail.task_id}</td>
-                  <td style={{ border: '1px solid white', padding: '8px' }}>
-                    {new Date(detail.timestamp).toLocaleString()}
-                  </td>
+                  <td style={{ border: '1px solid white', padding: '8px' }}>{new Date(detail.timestamp).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

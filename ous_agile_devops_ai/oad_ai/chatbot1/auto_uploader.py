@@ -1,5 +1,3 @@
-# autouploader.py
-
 import os
 import time
 import shutil
@@ -95,8 +93,7 @@ def delete_existing_document(source, filename):
                     logger.info(f"Document '{filename}' deleted successfully from source '{source}'.")
                     return True
                 else:
-                    logger.warning(
-                        f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
+                    logger.warning(f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
                     return False
         logger.info(f"Document '{filename}' not found in source '{source}'.")
         return True
@@ -121,8 +118,7 @@ def upload_document_to_iliad(source, file_path):
             url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
             files = {"file": (filename, file, 'application/octet-stream')}
 
-            logger.info(
-                f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
+            logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
 
             file.seek(0)
             logger.info(f"First 100 bytes of file {file_path}: {file.read(100)}")
@@ -194,6 +190,12 @@ def get_source_from_filename(filename, sources):
 def process_documents():
     auto_upload_dir = os.path.join(settings.MEDIA_ROOT, 'auto_upload')
     manual_check_dir = os.path.join(settings.MEDIA_ROOT, 'manual_check')
+
+    # Ensure the auto_upload directory exists
+    if not os.path.exists(auto_upload_dir):
+        os.makedirs(auto_upload_dir)
+        logger.info(f"Created auto_upload directory: {auto_upload_dir}")
+
     logger.info(f"Auto upload directory: {auto_upload_dir}")
     logger.info(f"Manual check directory: {manual_check_dir}")
 
@@ -283,8 +285,7 @@ def process_documents():
                     upload_status = check_upload_status(source, task_id)
                     if upload_status and upload_status.get('status') in ['COMPLETED', 'SUCCESS']:
                         processed_files.append({"file_name": filename, "status": "COMPLETED"})
-                        logger.info(
-                            f"File {filename} uploaded successfully to Iliad API after {attempt + 1} attempts.")
+                        logger.info(f"File {filename} uploaded successfully to Iliad API after {attempt + 1} attempts.")
                         os.remove(file_path)
                         logger.info(f"Removed {filename} from auto_upload directory")
                         UploadRecord.objects.filter(file_name=filename).update(status='COMPLETED')
@@ -315,7 +316,6 @@ def scheduled_process():
     except Exception as e:
         logger.error(f"Error in scheduled process: {str(e)}")
         return {"status": "error", "message": str(e)}
-
 
 def start_scheduler():
     schedule.every(10).minutes.do(scheduled_process)  # Adjust the schedule as needed
