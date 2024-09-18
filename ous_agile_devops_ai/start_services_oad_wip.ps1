@@ -37,12 +37,12 @@ function Stop-ProcessByPort {
 # Function to start Django and frontend services
 function Start-Services {
     # Stop Django server if running
-    Stop-ProcessByPort -port 8000
+    Stop-ProcessByPort -port 8001
     # Start Django server
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $djangoPath && .venv\Scripts\activate && cd $djangoPath && python manage.py runserver 0.0.0.0:8000 --noreload" -NoNewWindow
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $djangoPath && .venv\Scripts\activate && cd $djangoPath && python manage.py runserver 0.0.0.0:8001 --noreload" -NoNewWindow
 
     # Stop frontend service if running
-    Stop-ProcessByPort -port 3000
+    Stop-ProcessByPort -port 3001
     # Start frontend service
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $frontendPath && npm run build && npm start" -NoNewWindow
 }
