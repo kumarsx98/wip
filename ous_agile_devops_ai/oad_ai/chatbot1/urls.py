@@ -26,6 +26,8 @@ urlpatterns = [
     path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status, name='check_upload_status'),
     path('auto-upload/', views.auto_upload, name='auto_upload'),
     path('api/search/', views.api_search, name='api_search'),
- #   path('api/chat-with-source/', views.chat_with_source, name='chat_with_source'),
+    path('list-previews/', views.list_previews, name='list_previews'),  # new endpoint
+    path('delete-document/<str:source>/<str:document_id>/', views.delete_document, name='delete_document'),
+    #   path('api/chat-with-source/', views.chat_with_source, name='chat_with_source'),
     path('chat-with-source/<str:source_name>/', chat_with_source, name='chat-with-source'),
 ]

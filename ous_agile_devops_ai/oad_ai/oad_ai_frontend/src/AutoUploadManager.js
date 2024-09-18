@@ -1,37 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const AUTO_UPLOAD_URL = '/chatbot1/auto-upload/';
-const START_SCHEDULER_URL = '/chatbot1/start-scheduler/';
-const GET_UPLOAD_STATUS_URL = '/chatbot1/get-upload-status/';
-
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-}
-
-function AutoUploadManager() {
+const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [uploadDetails, setUploadDetails] = useState([]);
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
-  const [lastAutoUploadResponse, setLastAutoUploadResponse] = useState(null);
   const [autoUploadProgress, setAutoUploadProgress] = useState(0);
   const [autoUploadSteps, setAutoUploadSteps] = useState([]);
 
-  const fetchUploadStatus = useCallback(async () => {
+  // Fetch the list of previews and update upload details state
+  const fetchPreviews = async () => {
     try {
-      console.log('Fetching upload status...');
-      const response = await axios.get(GET_UPLOAD_STATUS_URL, {
+      const response = await axios.get('/chatbot1/list-previews/');
+      return response.data.previews || [];
+    } catch (error) {
+      console.error('Error fetching previews:', error);
+      return [];
+    }
+  };
+
+  // Fetch the upload status and update the state including preview URLs
+  const fetchUploadStatus = async () => {
+    try {
+      const response = await axios.get('/chatbot1/get-upload-status/', {
         headers: {
           'X-CSRFToken': getCookie('csrftoken'),
         },
       });
-      console.log('Upload status response:', response.data);
+
       if (response.data.status === 'success') {
-        setUploadDetails(response.data.upload_details || []);
-        setSchedulerStatus(response.data.scheduler_status || 'Not running');
+        const previews = await fetchPreviews();
+        const updatedDetails = response.data.upload_details.map(detail => {
+          const previewUrl = previews.find(preview => preview.includes(detail.file_name)) || '';
+          return { ...detail, preview_url: previewUrl ? `http://localhost:8001/media/${previewUrl}` : 'Not available' };
+        });
+        setUploadDetails(updatedDetails);
+        setSchedulerStatus('Running');
       } else {
         setMessage('Error fetching upload status: ' + response.data.message);
       }
@@ -39,26 +44,22 @@ function AutoUploadManager() {
       console.error('Error fetching upload status:', error);
       setMessage('Error fetching upload status: ' + (error.response?.data?.message || error.message));
     }
-  }, []);
+  };
 
   useEffect(() => {
-    let isMounted = true;
     axios.defaults.withCredentials = true;
 
     const fetchData = async () => {
-      if (isMounted) {
-        await fetchUploadStatus();
-      }
+      await fetchUploadStatus();
     };
 
     fetchData();
     const intervalId = setInterval(fetchData, 60000); // Refresh every 1 minute
 
     return () => {
-      isMounted = false;
       clearInterval(intervalId);
     };
-  }, [fetchUploadStatus]);
+  }, []);
 
   const handleAutoUpload = async () => {
     setIsLoading(true);
@@ -68,7 +69,7 @@ function AutoUploadManager() {
     try {
       console.log('Triggering auto-upload...');
       setAutoUploadSteps(prevSteps => [...prevSteps, 'Initiating auto-upload process']);
-      const response = await axios.post(AUTO_UPLOAD_URL, {}, {
+      const response = await axios.post('/chatbot1/auto-upload/', {}, {
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken'),
@@ -76,10 +77,10 @@ function AutoUploadManager() {
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setAutoUploadProgress(percentCompleted);
-        }
+        },
       });
+
       console.log('Auto-upload response:', response.data);
-      setLastAutoUploadResponse(response.data);
       setMessage(response.data.message || 'Auto-upload process completed.');
       setAutoUploadSteps(prevSteps => [...prevSteps, 'Auto-upload process completed']);
       await fetchUploadStatus(); // Refresh the status immediately after auto-upload
@@ -96,21 +97,40 @@ function AutoUploadManager() {
   const startScheduler = async () => {
     try {
       console.log('Starting scheduler...');
-      const response = await axios.post(START_SCHEDULER_URL, {}, {
+      const response = await axios.post('/chatbot1/start-scheduler/', {}, {
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken'),
         },
       });
+
       console.log('Start scheduler response:', response.data);
       setSchedulerStatus(response.data.status === 'success' ? 'Running' : 'Not running');
       setMessage(response.data.message || 'Scheduler started successfully.');
-      await fetchUploadStatus(); // Refresh the status immediately after starting the scheduler
     } catch (error) {
       console.error('Error starting scheduler:', error);
       setMessage('Error starting scheduler: ' + (error.response?.data?.message || error.message));
     }
   };
+
+  const formatTimestamp = timestamp => {
+    return timestamp ? new Date(timestamp).toLocaleString() : "N/A";
+  };
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
 
   return (
     <div style={{ border: '1px solid black', padding: '20px', margin: '20px', color: 'white', backgroundColor: '#333' }}>
@@ -139,17 +159,6 @@ function AutoUploadManager() {
         </div>
       )}
 
-      {lastAutoUploadResponse && (
-        <div style={{ marginTop: '20px', backgroundColor: '#444', padding: '10px', borderRadius: '4px' }}>
-          <h3>Last Auto-Upload Response:</h3>
-          <p>Status: <strong>{lastAutoUploadResponse.status}</strong></p>
-          <p>Message: {lastAutoUploadResponse.message}</p>
-          {Array.isArray(lastAutoUploadResponse.processed_files) && (
-            <p>Processed Files: {lastAutoUploadResponse.processed_files.join(', ')}</p>
-          )}
-        </div>
-      )}
-
       <h3>Recent Uploads:</h3>
       {uploadDetails.length > 0 ? (
         <div style={{ overflowX: 'auto' }}>
@@ -157,20 +166,33 @@ function AutoUploadManager() {
             <thead>
               <tr>
                 <th style={{ border: '1px solid white', padding: '8px' }}>File Name</th>
-                <th style={{ border: '1px solid white', padding: '8px' }}>Source</th>
                 <th style={{ border: '1px solid white', padding: '8px' }}>Status</th>
                 <th style={{ border: '1px solid white', padding: '8px' }}>Task ID</th>
                 <th style={{ border: '1px solid white', padding: '8px' }}>Timestamp</th>
+                <th style={{ border: '1px solid white', padding: '8px' }}>Preview</th>
               </tr>
             </thead>
             <tbody>
               {uploadDetails.map((detail, index) => (
                 <tr key={`${detail.file_name}-${index}`}>
                   <td style={{ border: '1px solid white', padding: '8px' }}>{detail.file_name}</td>
-                  <td style={{ border: '1px solid white', padding: '8px' }}>{detail.source}</td>
                   <td style={{ border: '1px solid white', padding: '8px' }}>{detail.status}</td>
-                  <td style={{ border: '1px solid white', padding: '8px' }}>{detail.task_id}</td>
-                  <td style={{ border: '1px solid white', padding: '8px' }}>{new Date(detail.timestamp).toLocaleString()}</td>
+                  <td style={{ border: '1px solid white', padding: '8px' }}>{detail.task_id || 'N/A'}</td>
+                  <td style={{ border: '1px solid white', padding: '8px' }}>{formatTimestamp(detail.timestamp)}</td>
+                  <td style={{ border: '1px solid white', padding: '8px' }}>
+                    {detail.preview_url ? (
+                      <a
+                        href={detail.preview_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#00BFFF', textDecoration: 'underline' }}
+                      >
+                        View Preview
+                      </a>
+                    ) : (
+                      'Not available'
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -181,6 +203,6 @@ function AutoUploadManager() {
       )}
     </div>
   );
-}
+};
 
 export default AutoUploadManager;

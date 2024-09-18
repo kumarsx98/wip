@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from .document_uploader import upload_document_to_iliad, check_upload_status as check_status
 from django.contrib.auth.decorators import login_required
 from .models import UploadRecord
@@ -28,15 +29,16 @@ logger = logging.getLogger(__name__)
 
 scheduler_thread = None
 scheduler_running = False
-
+ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 @csrf_exempt
 def auto_upload(request):
     if request.method == 'POST':
-        processed_files = process_documents()
+        result = process_documents()
         return JsonResponse({
-            'status': 'success',
-            'message': 'Auto-upload process completed',
-            'processed_files': processed_files,
+            "status": "success",
+            "message": "Auto-upload process completed",
+            "processed_files": result['processed_files'],
+            "unprocessed_files": result['unprocessed_files']
         })
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
@@ -151,6 +153,8 @@ def list_documents(request, source):
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
 
 
+
+
 @csrf_exempt
 def list_sources(request):
     logger.info("list_sources view called.")
@@ -213,7 +217,7 @@ def list_sources(request):
 
         def serialize_external_source(source_name, visibility, details=None):
             if details is None:
-                # Simulated empty details : Customize it later with actual detailed call
+                logger.warning(f"No details available for source: {source_name}")
                 return {
                     'name': source_name,
                     'visibility': visibility,
@@ -222,7 +226,7 @@ def list_sources(request):
                     'updated_at': 'N/A',
                 }
             else:
-                # Customize it according to details:
+                logger.info(f"Serialized details for source: {source_name} - {details}")
                 return {
                     'name': source_name,
                     'visibility': visibility,
@@ -231,24 +235,30 @@ def list_sources(request):
                     'updated_at': details.get('edited', 'N/A'),
                 }
 
+        def fetch_external_source_details(source_name):
+            source_url = f"{ILIAD_URL}/api/v1/sources/{source_name}"
+            logger.info(f"Fetching details for source: {source_url}")
+            resp = requests.get(source_url, headers=headers)
+            if resp.status_code == 200:
+                source_details = resp.json()
+                logger.info(f"Details fetched for source: {source_name} - {source_details}")
+                return source_details
+            else:
+                logger.error(f"Failed to fetch details for source: {source_name}, status code: {resp.status_code}")
+                return None
+
         global_sources_data = [serialize_source(source) for source in global_sources]
         private_sources_data = [serialize_source(source) for source in private_sources]
 
-        # Handle external sources, simulating details fetching if needed.
         external_global_sources = external_sources.get('global_sources', [])
         external_private_sources = external_sources.get('private_sources', [])
 
-        # mock or fetch details
-        def fetch_external_source_details(name):
-            # Example mock - Replace with actual call if applicable.
-            return {
-                'embedding_model': 'text-embedding-ada-002',
-                'created': '2023-02-01T12:00:00Z',
-                'edited': '2023-03-01T12:00:00Z'
-            }
-
-        external_global_sources_data = [serialize_external_source(source, 'global', fetch_external_source_details(source)) for source in external_global_sources]
-        external_private_sources_data = [serialize_external_source(source, 'private', fetch_external_source_details(source)) for source in external_private_sources]
+        external_global_sources_data = [
+            serialize_external_source(source, 'global', fetch_external_source_details(source)) for source in external_global_sources
+        ]
+        external_private_sources_data = [
+            serialize_external_source(source, 'private', fetch_external_source_details(source)) for source in external_private_sources
+        ]
 
         # Combine the external API sources with local database sources
         return JsonResponse({
@@ -262,6 +272,7 @@ def list_sources(request):
 
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
 
 
 @csrf_exempt
@@ -282,7 +293,7 @@ def chat_with_source(request, source_name):
                 encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
                 cipher_suite = Fernet(encryption_key)
                 api_key = cipher_suite.decrypt(encrypted_api_key).decode()
-                logger.debug(f"Decrypted API Key: {api_key[:4]}****{api_key[-4:]}")
+
             except Exception as e:
                 logger.error(f"Decryption failed: {e}")
                 return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
@@ -347,10 +358,32 @@ def chat_with_source(request, source_name):
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
 
+def list_previews(request):
+    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+    if not os.path.exists(preview_dir):
+        return JsonResponse({'previews': []})
+
+    previews = [
+        'previews/' + f for f in os.listdir(preview_dir)
+        if os.path.isfile(os.path.join(preview_dir, f))
+    ]
+    return JsonResponse({'previews': previews})
 
 
+@require_http_methods(["DELETE"])
+def delete_document(request, source, document_id):
+    try:
+        headers = get_api_headers()
+        delete_url = f"{ILIAD_URL}/api/v1/sources/{source}/documents/{document_id}"
+        response = requests.delete(delete_url, headers=headers)
 
+        if response.status_code == 204:
+            return JsonResponse({'message': 'Document deleted successfully.'}, status=204)
+        else:
+            return JsonResponse({'error': response.text}, status=response.status_code)
 
+    except requests.RequestException as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def api_search(request):

@@ -31,7 +31,7 @@ function Chatbot() {
       setQuestion('');
 
       try {
-        // Use the custom api instance here
+
         const resp = await api.post('/chatbot1/search/', { question: message, mysource });
         console.log('Received response from API:', resp.data);
 

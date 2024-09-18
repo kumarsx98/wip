@@ -12,6 +12,7 @@ from .models import UploadRecord
 logger = logging.getLogger(__name__)
 
 ILIAD_URL = settings.ILIAD_URL
+PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL  # URL base for preview
 
 def get_headers():
     try:
@@ -93,13 +94,36 @@ def delete_existing_document(source, filename):
                     logger.info(f"Document '{filename}' deleted successfully from source '{source}'.")
                     return True
                 else:
-                    logger.warning(f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
+                    logger.warning(
+                        f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
                     return False
         logger.info(f"Document '{filename}' not found in source '{source}'.")
         return True
     except requests.RequestException as e:
         logger.error(f"Error deleting document '{filename}': {str(e)}")
         return False
+
+def save_file_for_preview(file_path, source):
+    """
+    Save a copy of the file for preview purposes.
+    """
+    try:
+        filename = os.path.basename(file_path)
+        preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+        if not os.path.exists(preview_dir):
+            os.makedirs(preview_dir)
+
+        new_filename = f"{source}-{filename}"  # Ensure to use a dash, not a hash
+        new_file_path = os.path.join(preview_dir, new_filename)
+
+        shutil.copy(file_path, new_file_path)
+
+        preview_url = f"{PREVIEW_BASE_URL}previews/{new_filename}"  # Ensure this path corresponds to the served static path
+        logger.info(f"Saved file for preview: {new_file_path}, URL: {preview_url}")
+        return preview_url
+    except Exception as e:
+        logger.error(f"Error saving file for preview: {str(e)}")
+        return None
 
 def upload_document_to_iliad(source, file_path):
     try:
@@ -113,6 +137,8 @@ def upload_document_to_iliad(source, file_path):
         if not delete_existing_document(source, filename):
             logger.error(f"Failed to delete existing document '{filename}' from source '{source}'.")
             return None
+
+        preview_url = save_file_for_preview(file_path, source)  # Save file copy for preview
 
         with open(file_path, 'rb') as file:
             url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
@@ -133,10 +159,10 @@ def upload_document_to_iliad(source, file_path):
             task_id = response_json.get('task_id')
             if task_id:
                 logger.info(f"Received task ID: {task_id}")
-                return {"status": "PENDING", "task_id": task_id}
+                return {"status": "PENDING", "task_id": task_id, "preview_url": preview_url}
             else:
                 logger.info("No task ID received, but upload seems successful")
-                return {"status": "COMPLETED", "message": "Upload successful"}
+                return {"status": "COMPLETED", "message": "Upload successful", "preview_url": preview_url}
         else:
             logger.error(f"Error uploading document to Iliad API. Status code: {response.status_code}")
             return None
@@ -213,6 +239,9 @@ def process_documents():
         files_in_directory = os.listdir(auto_upload_dir)
         logger.info(f"Files in auto_upload directory: {files_in_directory}")
 
+        if not files_in_directory:
+            logger.info("No files found in auto_upload directory.")
+
         for filename in files_in_directory:
             file_path = os.path.join(auto_upload_dir, filename)
             logger.info(f"Processing file: {filename}")
@@ -268,12 +297,14 @@ def process_documents():
 
             status = upload_result.get('status', 'UNKNOWN')
             task_id = upload_result.get('task_id')
+            preview_url = upload_result.get('preview_url', '')
 
             UploadRecord.objects.create(
                 file_name=filename,
                 source=source,
                 status=status,
-                task_id=task_id
+                task_id=task_id,
+                preview_url=preview_url  # Save the preview URL
             )
             logger.info(f"Created UploadRecord for {filename}")
 
@@ -284,11 +315,16 @@ def process_documents():
                     time.sleep(retry_delay)
                     upload_status = check_upload_status(source, task_id)
                     if upload_status and upload_status.get('status') in ['COMPLETED', 'SUCCESS']:
-                        processed_files.append({"file_name": filename, "status": "COMPLETED"})
-                        logger.info(f"File {filename} uploaded successfully to Iliad API after {attempt + 1} attempts.")
                         os.remove(file_path)
                         logger.info(f"Removed {filename} from auto_upload directory")
                         UploadRecord.objects.filter(file_name=filename).update(status='COMPLETED')
+                        processed_files.append({
+                            "file_name": filename,
+                            "status": "COMPLETED",
+                            "preview_url": preview_url,  # Ensure to include the preview URL
+                            "task_id": task_id
+                        })
+                        logger.info(f"File {filename} uploaded successfully to Iliad API after {attempt + 1} attempts.")
                         break
                     elif upload_status and upload_status.get('status') == 'FAILED':
                         unprocessed_files.append({"file_name": filename, "reason": "Upload failed"})
@@ -299,10 +335,19 @@ def process_documents():
                         break
                 else:
                     unprocessed_files.append({"file_name": filename, "reason": "Max retries reached"})
+            else:
+                processed_files.append({
+                    "file_name": filename,
+                    "status": status,
+                    "preview_url": preview_url,
+                    "task_id": task_id
+                })
 
     except Exception as e:
         logger.error(f"Error processing documents: {str(e)}")
 
+    logger.info(f"Processed files: {processed_files}")
+    logger.info(f"Unprocessed files: {unprocessed_files}")
     return {"processed_files": processed_files, "unprocessed_files": unprocessed_files}
 
 def scheduled_process():

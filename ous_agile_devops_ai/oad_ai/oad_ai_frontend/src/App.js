@@ -1,16 +1,15 @@
-// App.js
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './Home';
-import ChatWithSource from './ChatWithSource'; // Import the new component
+import ChatWithSource from './ChatWithSource';
 import CreateSource from './CreateSource';
 import ListSources from './ListSources';
 import Login from './Login';
 import Navigation from './Navigation';
-import './App.css';
 import AutoUploadManager from './AutoUploadManager';
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
+import FilePreview from './FilePreview';
 
 import axios from 'axios';
 axios.defaults.withCredentials = true;
@@ -42,7 +41,8 @@ function App() {
             }
           />
           <Route path="/sources/:sourceName/documents" element={<ListSources />} />
-          <Route path="/chat-with-source/:sourceName" element={<ChatWithSource />} /> {/* New route for chat with source */}
+          <Route path="/chat-with-source/:sourceName" element={<ChatWithSource />} />
+          <Route path="/media/previews/*" element={<FilePreview />} />
         </Routes>
       </Router>
     </AuthProvider>

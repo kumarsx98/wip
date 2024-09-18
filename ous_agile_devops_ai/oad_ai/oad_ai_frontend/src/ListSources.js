@@ -1,4 +1,5 @@
-// listSources.js
+//listsources.js:
+
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -26,11 +27,8 @@ function ListSources() {
         }
     }, [sourceName]);
 
-    const formatDate = (dateString) => {
-        if (dateString && dateString !== 'N/A') {
-            return new Date(dateString).toLocaleString();
-        }
-        return 'N/A';
+    const trimPath = (path) => {
+        return path.replace('/chatbot1/media/documents/', '');
     };
 
     const handleSort = (field) => {
@@ -104,9 +102,8 @@ function ListSources() {
                 setDocuments(
                     response.data.documents.documents.map((doc) => ({
                         ...doc,
-                        path: doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`,
-                        created_at: doc.created_at || 'N/A',
-                        modified_at: doc.modified_at || 'N/A',
+                        path: trimPath(doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`),
+                        preview_url: `/media/previews/${source}/${doc.filename}`,
                     }))
                 );
                 setMessage(response.data.documents.documents.length === 0 ? 'No documents found.' : '');
@@ -212,6 +209,34 @@ function ListSources() {
         }
     };
 
+    const handleDelete = async (documentId, filename) => {
+        if (!window.confirm(`Are you sure you want to delete ${filename}?`)) return;
+
+        setIsLoading(true);
+        setMessage('');
+
+        try {
+            const response = await axios.delete(`/chatbot1/delete-document/${sourceName}/${documentId}/`, {
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                withCredentials: true,
+            });
+
+            if (response.status === 204) {
+                setMessage(`${filename} was deleted successfully.`);
+                fetchDocuments(sourceName);
+            } else {
+                setMessage('An error occurred while deleting the document.');
+            }
+        } catch (error) {
+            console.error('Error during document deletion:', error);
+            setMessage(error.response?.data?.error || 'An error occurred while deleting the document.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const pollUploadStatus = async (source, taskId, maxAttempts = 10) => {
         for (let i = 0; i < maxAttempts; i++) {
             try {
@@ -266,8 +291,7 @@ function ListSources() {
                             <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Name</th>
                             <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Visibility</th>
                             <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Model</th>
-                            <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Created At</th>
-                            <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Updated At</th>
+                            <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>ID</th>
                             <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Actions</th>
                         </tr>
                     </thead>
@@ -281,8 +305,7 @@ function ListSources() {
                                 </td>
                                 <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{source.visibility}</td>
                                 <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{source.model}</td>
-                                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{formatDate(source.created_at)}</td>
-                                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{formatDate(source.updated_at)}</td>
+                                <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{source.id}</td>
                                 <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
                                     <button
                                         onClick={() => navigateToChat(source.name)}
@@ -306,8 +329,8 @@ function ListSources() {
             <div style={{ marginBottom: '20px' }}>
                 <button onClick={() => navigate('/sources')} style={buttonStyle}>Back to Sources</button>
                 <input type="file" onChange={handleFileChange} style={{ marginRight: '10px' }} />
-                <button onClick={handleUpload} style={buttonStyle}>Upload Document</button>
-                <button onClick={handleSyncSource} style={buttonStyle}>Sync Source</button>
+                <button onClick={handleUpload} style={uploadButtonStyle}>Upload Document</button>
+                <button onClick={handleSyncSource} style={syncButtonStyle}>Sync Source</button>
                 <button
                     onClick={() => navigateToChat(sourceName)}
                     style={{ backgroundColor: '#ff7f0e', color: '#fff', border: 'none', padding: '10px 20px', cursor: 'pointer' }}
@@ -336,12 +359,9 @@ function ListSources() {
                                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('path')}>
                                     Path {sortField === 'path' && (sortDirection === 'asc' ? '▲' : '▼')}
                                 </th>
-                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('created_at')}>
-                                    Created At {sortField === 'created_at' && (sortDirection === 'asc' ? '▲' : '▼')}
-                                </th>
-                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('modified_at')}>
-                                    Modified At {sortField === 'modified_at' && (sortDirection === 'asc' ? '▲' : '▼')}
-                                </th>
+                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>ID</th>
+                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Preview</th>
+                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Delete</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -349,8 +369,29 @@ function ListSources() {
                                 <tr key={document.id || index} style={{ backgroundColor: '#fff' }}>
                                     <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.filename}</td>
                                     <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.path}</td>
-                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{formatDate(document.created_at)}</td>
-                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{formatDate(document.modified_at)}</td>
+                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.id}</td>
+                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
+                                        {document.preview_url ? (
+                                            <a
+                                                href={document.preview_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#00BFFF', textDecoration: 'underline' }}
+                                            >
+                                                View Preview
+                                            </a>
+                                        ) : (
+                                            'Not available'
+                                        )}
+                                    </td>
+                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
+                                        <button
+                                            onClick={() => handleDelete(document.id, document.filename)}
+                                            style={{ backgroundColor: '#E57373', color: '#fff', border: 'none', padding: '10px', cursor: 'pointer' }}
+                                        >
+                                            Delete
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -364,6 +405,24 @@ function ListSources() {
 
     const buttonStyle = {
         backgroundColor: '#007bff',
+        color: '#fff',
+        border: 'none',
+        padding: '10px 20px',
+        marginRight: '10px',
+        cursor: 'pointer'
+    };
+
+    const uploadButtonStyle = {
+        backgroundColor: '#4CAF50',
+        color: '#fff',
+        border: 'none',
+        padding: '10px 20px',
+        marginRight: '10px',
+        cursor: 'pointer'
+    };
+
+    const syncButtonStyle = {
+        backgroundColor: '#FFB74D',
         color: '#fff',
         border: 'none',
         padding: '10px 20px',
