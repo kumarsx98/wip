@@ -11,6 +11,9 @@ import threading
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 import requests
+
+import concurrent.futures
+import datetime
 import traceback
 from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
 from djangosaml2.views import AssertionConsumerServiceView
@@ -24,12 +27,13 @@ from saml2.config import SPConfig
 from saml2.metadata import create_metadata_string
 from .models import Source  # Make sure to import your Source model
 
-
 logger = logging.getLogger(__name__)
 
 scheduler_thread = None
 scheduler_running = False
 ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
+
+
 @csrf_exempt
 def auto_upload(request):
     if request.method == 'POST':
@@ -42,6 +46,7 @@ def auto_upload(request):
         })
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
 
 @csrf_exempt
 def get_upload_status_view(request):
@@ -57,6 +62,7 @@ def get_upload_status_view(request):
         })
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
+
 @csrf_exempt
 def start_scheduler_view(request):
     global scheduler_thread, scheduler_running
@@ -69,6 +75,7 @@ def start_scheduler_view(request):
         else:
             return JsonResponse({'status': 'success', 'message': 'Scheduler is already running'})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
 
 @csrf_exempt
 def upload_document(request, source):
@@ -99,10 +106,12 @@ def upload_document(request, source):
     print(f"Invalid request: {json.dumps(error_response, indent=2)}")
     return JsonResponse(error_response)
 
+
 @csrf_exempt
 def check_upload_status(request, source, task_id):
     status_result = check_status(source, task_id)
     return JsonResponse(status_result)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -113,7 +122,8 @@ def user_info(request):
         'email': user.email,
         'first_name': user.first_name,
         'last_name': user.last_name,
-    })# ... (rest of your code remains the same)
+    })  # ... (rest of your code remains the same)
+
 
 def get_api_headers():
     encryption_key = settings.ENCRYPTION_KEY.encode()
@@ -151,6 +161,13 @@ def list_documents(request, source):
     except requests.RequestException as e:
         logger.error(f"Error fetching documents for source {source}: {str(e)}")
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
+
+
+
+
+
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -202,20 +219,26 @@ def list_sources(request):
             logger.error(traceback.format_exc())
             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
-        # Fetch sources from the database
-        global_sources = Source.objects.filter(visibility='global')
-        private_sources = Source.objects.filter(visibility='private')
-
         def serialize_source(source):
             return {
                 'name': source.name,
                 'visibility': source.visibility,
                 'model': source.model or 'N/A',
-                'created_at': source.created_at.isoformat() if source.created_at else 'N/A',
-                'updated_at': source.updated_at.isoformat() if source.updated_at else 'N/A',
+                'created_at': source.created_at.strftime('%Y-%m-%d %H:%M:%S') if source.created_at else 'N/A',
+                'updated_at': source.updated_at.strftime('%Y-%m-%d %H:%M:%S') if source.updated_at else 'N/A',
             }
 
         def serialize_external_source(source_name, visibility, details=None):
+            def format_date(date_str):
+                if date_str == 'N/A' or date_str is None:
+                    return 'N/A'
+                try:
+                    formatted_date = datetime.datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+                    return formatted_date.strftime('%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    # In case the date format is not as expected, return it as it is for safety
+                    return date_str
+
             if details is None:
                 logger.warning(f"No details available for source: {source_name}")
                 return {
@@ -231,8 +254,8 @@ def list_sources(request):
                     'name': source_name,
                     'visibility': visibility,
                     'model': details.get('embedding_model', 'N/A'),
-                    'created_at': details.get('created', 'N/A'),
-                    'updated_at': details.get('edited', 'N/A'),
+                    'created_at': format_date(details.get('created', 'N/A')),
+                    'updated_at': format_date(details.get('edited', 'N/A')),
                 }
 
         def fetch_external_source_details(source_name):
@@ -247,17 +270,29 @@ def list_sources(request):
                 logger.error(f"Failed to fetch details for source: {source_name}, status code: {resp.status_code}")
                 return None
 
+        # Fetch sources from the database
+        global_sources = Source.objects.filter(visibility='global')
+        private_sources = Source.objects.filter(visibility='private')
+
         global_sources_data = [serialize_source(source) for source in global_sources]
         private_sources_data = [serialize_source(source) for source in private_sources]
 
         external_global_sources = external_sources.get('global_sources', [])
         external_private_sources = external_sources.get('private_sources', [])
 
+        # Fetch external source details concurrently
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            external_global_sources_details = list(executor.map(fetch_external_source_details, external_global_sources))
+            external_private_sources_details = list(
+                executor.map(fetch_external_source_details, external_private_sources))
+
         external_global_sources_data = [
-            serialize_external_source(source, 'global', fetch_external_source_details(source)) for source in external_global_sources
+            serialize_external_source(source, 'global', details) for source, details in
+            zip(external_global_sources, external_global_sources_details)
         ]
         external_private_sources_data = [
-            serialize_external_source(source, 'private', fetch_external_source_details(source)) for source in external_private_sources
+            serialize_external_source(source, 'private', details) for source, details in
+            zip(external_private_sources, external_private_sources_details)
         ]
 
         # Combine the external API sources with local database sources
@@ -272,7 +307,6 @@ def list_sources(request):
 
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
-
 
 
 @csrf_exempt
@@ -384,6 +418,7 @@ def delete_document(request, source, document_id):
 
     except requests.RequestException as e:
         return JsonResponse({'error': str(e)}, status=500)
+
 
 @csrf_exempt
 def api_search(request):
@@ -592,15 +627,8 @@ def sync_source(request, source):
         return JsonResponse({'error': 'An error occurred during synchronization'}, status=500)
 
 
-
-
-
 def search(request):
     return render(request, 'chatbot1/search.html')
-
-
-
-
 
 
 @login_required
@@ -615,6 +643,7 @@ def current_user(request):
         }
     })
 
+
 class CustomAssertionConsumerServiceView(AssertionConsumerServiceView):
     def post(self, request, *args, **kwargs):
         logger.info(f"Received SAML response: {request.POST.get('SAMLResponse')}")
@@ -624,12 +653,13 @@ class CustomAssertionConsumerServiceView(AssertionConsumerServiceView):
         else:
             return HttpResponseRedirect('http://localhost:3001/login-failed')  # Handle failed authentication
 
+
 def sp_metadata(request):
     conf = SPConfig()
     conf.load(settings.SAML_CONFIG)
     metadata = create_metadata_string(None, conf)
     return HttpResponse(metadata, content_type='text/xml')
 
+
 def index(request):
     return HttpResponse("Welcome to the SAML2 test")
-

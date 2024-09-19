@@ -1,3 +1,14 @@
-pythonProject_test_ui/oad_ai/debug.log
-pythonProject_test_ui/oad_ai/django.log
+# Python bytecode files and cache
+ous_agile_devops_ai/oad_ai/chatbot1/__pycache__/
+ous_agile_devops_ai/oad_ai/chatbot1/migrations/__pycache__/
+ous_agile_devops_ai/oad_ai/oad_ai/__pycache__/
 
+# Frontend build files
+ous_agile_devops_ai/oad_ai/oad_ai_frontend/build/
+
+# Node modules and cache
+ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/
+
+
+# Log files
+ous_agile_devops_ai/oad_ai/debug.log
