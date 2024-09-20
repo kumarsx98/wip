@@ -5,6 +5,9 @@ ous_agile_devops_ai/oad_ai/oad_ai/__pycache__/
 
 # Frontend build files
 ous_agile_devops_ai/oad_ai/oad_ai_frontend/build/
+# Ignore cache directories and files
+ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/.cache/
+
 
 # Node modules and cache
 node_modules/
@@ -13,3 +16,4 @@ node_modules/
 # Log files
 ous_agile_devops_ai/oad_ai/debug.log
 ous_agile_devops_ai/oad_ai/django.log
+ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/.cache/
