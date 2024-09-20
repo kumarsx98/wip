@@ -166,7 +166,6 @@ def list_documents(request, source):
 @csrf_exempt
 def list_sources(request):
     logger.info("list_sources view called.")
-
     if request.method == "GET":
         try:
             # Decrypt the API key
@@ -178,7 +177,6 @@ def list_sources(request):
             except Exception as e:
                 logger.error(f"Decryption failed: {e}")
                 return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
-
             # Set up the API request
             ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
             headers = {
@@ -187,16 +185,13 @@ def list_sources(request):
                 "Authorization": f"Bearer {settings.AUTH_TOKEN}",
                 "Content-Type": "application/json"
             }
-
             url = f"{ILIAD_URL}/api/v1/sources/"
             logger.info(f"Sending request to {url}")
             logger.info(f"Request headers: {headers}")
-
             # Send the request to the external API
             resp = requests.get(url=url, headers=headers)
             logger.info(f"API response status code: {resp.status_code}")
             logger.info(f"API response body: {resp.text}")
-
             if resp.status_code == 200:
                 external_sources = resp.json()
                 logger.info(f"Sources fetched successfully: {external_sources}")
@@ -204,12 +199,10 @@ def list_sources(request):
                 logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
                 return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"},
                                     status=resp.status_code)
-
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             logger.error(traceback.format_exc())
             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
-
         def serialize_source(source):
             return {
                 'name': source.name,
@@ -218,7 +211,6 @@ def list_sources(request):
                 'created_at': source.created_at.strftime('%Y-%m-%d %H:%M:%S') if source.created_at else 'N/A',
                 'updated_at': source.updated_at.strftime('%Y-%m-%d %H:%M:%S') if source.updated_at else 'N/A',
             }
-
         def serialize_external_source(source_name, visibility, details=None):
             def format_date(date_str):
                 if date_str == 'N/A' or date_str is None:
@@ -229,7 +221,6 @@ def list_sources(request):
                 except ValueError:
                     # In case the date format is not as expected, return it as it is for safety
                     return date_str
-
             if details is None:
                 logger.warning(f"No details available for source: {source_name}")
                 return {
@@ -248,7 +239,6 @@ def list_sources(request):
                     'created_at': format_date(details.get('created', 'N/A')),
                     'updated_at': format_date(details.get('edited', 'N/A')),
                 }
-
         def fetch_external_source_details(source_name):
             source_url = f"{ILIAD_URL}/api/v1/sources/{source_name}"
             logger.info(f"Fetching details for source: {source_url}")
@@ -260,23 +250,21 @@ def list_sources(request):
             else:
                 logger.error(f"Failed to fetch details for source: {source_name}, status code: {resp.status_code}")
                 return None
-
         # Fetch sources from the database
         global_sources = Source.objects.filter(visibility='global')
         private_sources = Source.objects.filter(visibility='private')
-
         global_sources_data = [serialize_source(source) for source in global_sources]
         private_sources_data = [serialize_source(source) for source in private_sources]
-
         external_global_sources = external_sources.get('global_sources', [])
         external_private_sources = external_sources.get('private_sources', [])
-
+        # Filter external sources to only include those whose names start with "oad"
+        external_global_sources = [source for source in external_global_sources if source.startswith("oad")]
+        external_private_sources = [source for source in external_private_sources if source.startswith("oad")]
         # Fetch external source details concurrently
         with concurrent.futures.ThreadPoolExecutor() as executor:
             external_global_sources_details = list(executor.map(fetch_external_source_details, external_global_sources))
             external_private_sources_details = list(
                 executor.map(fetch_external_source_details, external_private_sources))
-
         external_global_sources_data = [
             serialize_external_source(source, 'global', details) for source, details in
             zip(external_global_sources, external_global_sources_details)
@@ -285,7 +273,6 @@ def list_sources(request):
             serialize_external_source(source, 'private', details) for source, details in
             zip(external_private_sources, external_private_sources_details)
         ]
-
         # Combine the external API sources with local database sources
         return JsonResponse({
             'external_sources': {
@@ -295,7 +282,6 @@ def list_sources(request):
             'global_sources': global_sources_data,
             'private_sources': private_sources_data,
         })
-
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
