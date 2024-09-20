@@ -1,5 +1,5 @@
 SECRET_KEY=django-insecure-(5=qfxfb*dcfs338e+xrw4i=a%*go6r8(n2s_z)85+1i(szx4@
-DEBUG=True
+DEBUG=False
 ALLOWED_HOSTS=wz02465p,127.0.0.1,wz02465p.abbvienet.com,localhost
 ENCRYPTION_KEY=vNHKzzxC0_CcBV4N2bFz4s0webQTX4LEZaBTU-irGrg=
 ENCRYPTED_API_KEY=gAAAAABmjRR-INgfSQrpH5frgg7tIhtHPBvL9mAsL6OQEY6w8B-pqKgH9KG6JYkx8mF4FtgSUfztZYsQvlXbrHmF4fjQ2AxeBjSYDN35RprU3OSEqM5wB-lgcDQoLU5Tw0x_z5zNXor_
@@ -9,3 +9,4 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 CORS_ALLOW_CREDENTIALS=True
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+
