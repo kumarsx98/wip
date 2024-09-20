@@ -1,19 +1,24 @@
-
-
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const FilePreview = () => {
   const { pathname } = window.location;
-  const fileUrl = `http://localhost:8001${pathname}`; // Direct link to Django backend
+  const [fileUrl, setFileUrl] = useState('');
 
   useEffect(() => {
+    const currentUrl = window.location.origin; // Get the current server address
+    const fileUrl = `${currentUrl}${pathname}`;
+    setFileUrl(fileUrl);
     console.log(`Loading file from: ${fileUrl}`);
-  }, [fileUrl]);
+  }, [pathname]);
 
   return (
     <div>
       <h2>File Preview</h2>
-      <iframe src={fileUrl} title="File Preview" width="100%" height="800px" style={{ border: 'none' }} />
+      {fileUrl ? (
+        <iframe src={fileUrl} title="File Preview" width="100%" height="800px" style={{ border: 'none' }} />
+      ) : (
+        <p>Loading file preview...</p>
+      )}
     </div>
   );
 };

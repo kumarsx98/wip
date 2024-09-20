@@ -163,15 +163,6 @@ def list_documents(request, source):
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
 
 
-
-
-
-
-logger = logging.getLogger(__name__)
-
-
-
-
 @csrf_exempt
 def list_sources(request):
     logger.info("list_sources view called.")

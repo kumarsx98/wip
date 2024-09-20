@@ -277,7 +277,6 @@ function Documents() {
                                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('path')}>
                                     Path {sortField === 'path' && (sortDirection === 'asc' ? '▲' : '▼')}
                                 </th>
-                                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>ID</th>
                                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Preview</th>
                                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Delete</th>
                             </tr>
@@ -287,7 +286,6 @@ function Documents() {
                                 <tr key={document.id || index} style={{ backgroundColor: '#fff' }}>
                                     <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.filename}</td>
                                     <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.path}</td>
-                                    <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.id}</td>
                                     <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
                                         {document.preview_url ? (
                                             <a

@@ -1,3 +1,5 @@
+//autouploadmanger.js:
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -32,8 +34,13 @@ const AutoUploadManager = () => {
       if (response.data.status === 'success') {
         const previews = await fetchPreviews();
         const updatedDetails = response.data.upload_details.map(detail => {
+          const encodedFileName = encodeURIComponent(detail.file_name);
+
           const previewUrl = previews.find(preview => preview.includes(detail.file_name)) || '';
-          return { ...detail, preview_url: previewUrl ? `http://localhost:8001/media/${previewUrl}` : 'Not available' };
+          return {
+            ...detail,
+            preview_url: previewUrl ? `http://localhost:8001/media/previews/${encodedFileName}` : 'Not available'
+          };
         });
         setUploadDetails(updatedDetails);
         setSchedulerStatus('Running');

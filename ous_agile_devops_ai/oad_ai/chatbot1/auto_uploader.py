@@ -2,7 +2,6 @@ import os
 import time
 import shutil
 import logging
-
 import schedule
 from django.conf import settings
 from cryptography.fernet import Fernet
@@ -103,6 +102,8 @@ def delete_existing_document(source, filename):
         logger.error(f"Error deleting document '{filename}': {str(e)}")
         return False
 
+import urllib.parse
+
 def save_file_for_preview(file_path, source):
     """
     Save a copy of the file for preview purposes.
@@ -113,17 +114,19 @@ def save_file_for_preview(file_path, source):
         if not os.path.exists(preview_dir):
             os.makedirs(preview_dir)
 
-        new_filename = f"{source}-{filename}"  # Ensure to use a dash, not a hash
-        new_file_path = os.path.join(preview_dir, new_filename)
+        new_file_path = os.path.join(preview_dir, filename)
 
         shutil.copy(file_path, new_file_path)
 
-        preview_url = f"{PREVIEW_BASE_URL}previews/{new_filename}"  # Ensure this path corresponds to the served static path
+        encoded_filename = urllib.parse.quote(filename)
+        preview_url = f"{PREVIEW_BASE_URL}/media/previews/{encoded_filename}"
         logger.info(f"Saved file for preview: {new_file_path}, URL: {preview_url}")
         return preview_url
     except Exception as e:
         logger.error(f"Error saving file for preview: {str(e)}")
         return None
+
+
 
 def upload_document_to_iliad(source, file_path):
     try:
@@ -199,7 +202,7 @@ def check_upload_status(source, task_id):
         return None
 
 def get_source_from_filename(filename, sources):
-    parts = filename.split('-')
+    parts = filename.split('#')
     logger.info(f"Filename parts: {parts}")
     logger.info(f"Available sources: {sources}")
 
