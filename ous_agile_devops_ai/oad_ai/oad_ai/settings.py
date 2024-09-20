@@ -35,9 +35,6 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', cast=Csv())
 fernet = Fernet(ENCRYPTION_KEY.encode())
 ILIAD_API_KEY = fernet.decrypt(ENCRYPTED_API_KEY.encode()).decode()
 
-# Custom Middleware for Request Timeout
-
-
 # Installed apps and middleware
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -67,7 +64,7 @@ MIDDLEWARE = [
     'djangosaml2.middleware.SamlSessionMiddleware',
     'csp.middleware.CSPMiddleware',
     'oad_ai.middleware.XFrameOptionsMiddleware',  # Custom middleware for X-Frame-Options
-    #'oad_ai.timeout_middleware.TimeoutMiddleware',  # Custom Timeout Middleware
+    'oad_ai.timeout_middleware.TimeoutMiddleware',  # Custom Timeout Middleware
 ]
 
 # URL and template configuration

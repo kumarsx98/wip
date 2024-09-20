@@ -1,18 +1,37 @@
-import signal
+import threading
+import time
+from django.utils.deprecation import MiddlewareMixin
+from django.http import HttpResponse
 
-class TimeoutMiddleware:
+
+class TimeoutException(Exception):
+    pass
+
+
+def timeout_handler(request, timeout):
+    def _timeout():
+        time.sleep(timeout)
+        if not request.META.get('_timed_out', False):
+            raise TimeoutException("Request timed out after {} seconds".format(timeout))
+
+    thread = threading.Thread(target=_timeout)
+    thread.setDaemon(True)
+    thread.start()
+
+
+class TimeoutMiddleware(MiddlewareMixin):
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        def handler(signum, frame):
-            raise Exception("Request took too long")
+        timeout = 600  # 10 minutes in seconds
+        timeout_handler(request, timeout)
 
-        # Change the timeout value here
-        signal.signal(signal.SIGALRM, handler)
-        signal.alarm(600)  # 600 seconds = 10 minutes
+        try:
+            response = self.get_response(request)
+        except TimeoutException:
+            response = HttpResponse("Request Timeout", status=504)
+        finally:
+            request.META['_timed_out'] = True
 
-        response = self.get_response(request)
-
-        signal.alarm(0)  # Disable the alarm after the request is served
         return response
