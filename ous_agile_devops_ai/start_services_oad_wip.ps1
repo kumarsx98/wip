@@ -6,7 +6,7 @@ $frontendPath = "E:\_wip\ous_agile_devops_ai\oad_ai\oad_ai_frontend"
 $ports = @(8001, 3001)
 
 # Define the time limit
-$timeLimit = 7050 # 2 hours
+$timeLimit = 7050 # ~2 hours
 $startTime = Get-Date
 $endTime = $startTime.AddSeconds($timeLimit)
 
@@ -41,16 +41,40 @@ function Start-Services {
     # Start Django server
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $djangoPath && .venv\Scripts\activate && cd $djangoPath && python manage.py runserver 0.0.0.0:8001 --noreload" -NoNewWindow
 
+    # Print Django server status
+    $hostname = [System.Net.Dns]::GetHostName()
+    $localIP = [System.Net.Dns]::GetHostByName($hostname).AddressList[0].ToString()
+    Start-Sleep -Seconds 5 # Give some time for the server to start
+    if (Test-Port -port 8001) {
+        Write-Host "Django server started successfully!"
+        Write-Host "Django can be viewed in the browser at the below URLs:"
+        Write-Host "  Local:            http://127.0.0.1:8001"
+        Write-Host "  On Your Network:  http://$localIP:8001"
+    } else {
+        Write-Host "Failed to start the Django server."
+    }
+
     # Stop frontend service if running
     Stop-ProcessByPort -port 3001
     # Start frontend service
     Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $frontendPath && npm run build && npm start" -NoNewWindow
+
+    # Print React frontend status
+    Start-Sleep -Seconds 5 # Give some time for the server to start
+    if (Test-Port -port 3001) {
+        Write-Host "React frontend started successfully!"
+        Write-Host "Frontend can be viewed in the browser at the below URLs:"
+        Write-Host "  Local:            http://127.0.0.1:3001"
+        Write-Host "  On Your Network:  http://$localIP:3001"
+    } else {
+        Write-Host "Failed to start the React frontend."
+    }
 }
 
 # Start services initially
 Start-Services
 
-# Main loop to check if services are up every 2 minutes
+# Main loop to check if services are up every 5 minutes
 while ((Get-Date) -lt $endTime) {
     Start-Sleep -Seconds 300
     Start-Services
