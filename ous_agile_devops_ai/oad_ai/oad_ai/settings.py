@@ -19,7 +19,8 @@ ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 # Security settings
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'localhost:8000', 'localhost:3000', 'localhost:3001','10.72.19.8']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'localhost:8000', 'localhost:3000', 'localhost:3001','10.72.19.8' ,
+    '10.72.19.8:8001']
 
 # API keys and tokens
 ENCRYPTION_KEY = config('ENCRYPTION_KEY')

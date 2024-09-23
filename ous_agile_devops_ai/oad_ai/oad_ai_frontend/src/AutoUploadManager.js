@@ -1,3 +1,5 @@
+//autouploadmanger.js:
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -8,8 +10,6 @@ const AutoUploadManager = () => {
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
   const [autoUploadProgress, setAutoUploadProgress] = useState(0);
   const [autoUploadSteps, setAutoUploadSteps] = useState([]);
-
-  const baseURL = window.location.origin; // Get the current server address
 
   // Fetch the list of previews and update upload details state
   const fetchPreviews = async () => {
@@ -39,7 +39,7 @@ const AutoUploadManager = () => {
           const previewUrl = previews.find(preview => preview.includes(detail.file_name)) || '';
           return {
             ...detail,
-            preview_url: previewUrl ? `${baseURL}/media/previews/${encodedFileName}` : 'Not available'
+            preview_url: previewUrl ? `http://localhost:8001/media/previews/${encodedFileName}` : 'Not available'
           };
         });
         setUploadDetails(updatedDetails);
