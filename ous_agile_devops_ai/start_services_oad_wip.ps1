@@ -48,7 +48,7 @@ function Start-Services {
     # Print Django server status
     $hostname = [System.Net.Dns]::GetHostName()
     $localIP = [System.Net.Dns]::GetHostByName($hostname).AddressList[0].ToString()
-    Start-Sleep -Seconds 5 # Give some time for the server to start
+    Start-Sleep -Seconds 10 # Give some time for the server to start
     if (Test-Port -port $djangoPort) {
         Write-Host "Django server started successfully!"
         Write-Host "Django can be viewed in the browser at the below URLs:"
@@ -66,7 +66,7 @@ function Start-Services {
     Start-Process -NoNewWindow -FilePath "cmd.exe" -ArgumentList "/c E: && cd $frontendPath && npm run build && set PORT=$frontendPort && npm start" -PassThru | Out-Null
 
     # Print React frontend status
-    Start-Sleep -Seconds 5 # Give some time for the server to start
+    Start-Sleep -Seconds 10 # Give some time for the server to start
     if (Test-Port -port $frontendPort) {
         Write-Host "React frontend started successfully!"
         Write-Host "Frontend can be viewed in the browser at the below URLs:"
