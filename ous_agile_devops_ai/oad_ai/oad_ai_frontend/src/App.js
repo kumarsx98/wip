@@ -1,5 +1,4 @@
 import React from 'react';
-import axios from './customAxiosInstance';  // Import the customAxiosInstance
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './Home';
 import ChatWithSource from './ChatWithSource';
@@ -13,7 +12,7 @@ import { AuthProvider } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
 import FilePreview from './FilePreview';
 
-// Set default axios configuration
+import axios from 'axios';
 axios.defaults.withCredentials = true;
 
 function App() {
