@@ -41,7 +41,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'djangosaml2.middleware.SamlSessionMiddleware', 'csp.middleware.CSPMiddleware',
-    # Add custom middleware for X-Frame-Options if needed
+    'oad_ai.timeout_middleware.TimeoutMiddleware',  # Add custom timeout middleware
 ]
 
 # URL and template configuration
@@ -193,3 +193,6 @@ CSP_FONT_SRC = ("'self'", "https:", "data:")
 SAML_CREATE_UNKNOWN_USER = True
 SAML_IGNORE_AUTHENTICATED_USERS = False
 SAML2_AUTH = {'BINDING': 'HTTP-REDIRECT',}
+
+# Request timeout in seconds (2 hours)
+REQUEST_TIMEOUT = 7200
