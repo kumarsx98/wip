@@ -1,40 +1,37 @@
-import axios from './customAxiosInstance';  // Ensure axios instance is used
+import axios from 'axios';
 
-const AutoUploadManager = () => {
+// Create an Axios instance
+const customAxiosInstance = axios.create({
+  baseURL: 'http://10.72.19.8:8001',  // Replace with your backend base URL if necessary
+  timeout: 1000000,  // Request timeout in milliseconds
+  withCredentials: true  // Send credentials such as cookies along with requests
+});
 
-  // Add console.log to verify the useEffect and request triggering
-  useEffect(() => {
-    console.log("AutoUploadManager component is mounted");
-    axios.defaults.withCredentials = true;
+// Interceptors to handle common tasks
+customAxiosInstance.interceptors.request.use(
+  (config) => {
+    // Modify request config before sending the request
+    console.log('Request sent:', config);  // Logging request config
+    return config;
+  },
+  (error) => {
+    // Handle request error
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
 
-    const fetchData = async () => {
-      console.log("Fetching upload status");  // Log for debugging
-      await fetchUploadStatus();
-    };
+customAxiosInstance.interceptors.response.use(
+  (response) => {
+    // Modify response data before returning it
+    console.log('Response received:', response);  // Logging response data
+    return response;
+  },
+  (error) => {
+    // Handle response errors
+    console.error('Response error:', error);
+    return Promise.reject(error);
+  }
+);
 
-    fetchData();
-    const intervalId = setInterval(fetchData, 60000); // Refresh every 1 minute
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  // Log error details for better debugging
-  const fetchUploadStatus = async () => {
-    try {
-      const response = await axios.get('/chatbot1/get-upload-status/', {
-        headers: {
-          'X-CSRFToken': getCookie('csrftoken'),
-        },
-      });
-      console.log("Fetched upload status:", response.data);  // Log response for debugging
-      // rest of the code...
-    } catch (error) {
-      console.error('Error during fetchUploadStatus:', error);  // Log the error
-      setMessage(`Error fetching upload status: ${error.message || 'Network Error'}`);  // Log detailed message
-    }
-  };
-
-  // Other code remains the same...
-};
+export default customAxiosInstance;

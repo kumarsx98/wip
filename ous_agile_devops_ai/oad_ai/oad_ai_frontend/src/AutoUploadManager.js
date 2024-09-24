@@ -1,7 +1,7 @@
-//autouploadmanger.js:
+// AutoUploadManager.js
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from './customAxiosInstance';  // Import the custom Axios instance
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -39,7 +39,7 @@ const AutoUploadManager = () => {
           const previewUrl = previews.find(preview => preview.includes(detail.file_name)) || '';
           return {
             ...detail,
-            preview_url: previewUrl ? `http://localhost:8001/media/previews/${encodedFileName}` : 'Not available'
+            preview_url: previewUrl ? `http://10.72.19.8:8001/media/previews/${encodedFileName}` : 'Not available'
           };
         });
         setUploadDetails(updatedDetails);
@@ -57,16 +57,17 @@ const AutoUploadManager = () => {
     axios.defaults.withCredentials = true;
 
     const fetchData = async () => {
+      console.log("Fetching upload status");  // Log for debugging
       await fetchUploadStatus();
     };
 
     fetchData();
-    const intervalId = setInterval(fetchData, 600000); // Refresh every 1 minute
+    const intervalId = setInterval(fetchData, 60000); // Refresh every 1 minute
 
     return () => {
       clearInterval(intervalId);
     };
-  }, []);
+  }, [fetchUploadStatus]);
 
   const handleAutoUpload = async () => {
     setIsLoading(true);
@@ -76,6 +77,7 @@ const AutoUploadManager = () => {
     try {
       console.log('Triggering auto-upload...');
       setAutoUploadSteps(prevSteps => [...prevSteps, 'Initiating auto-upload process']);
+
       const response = await axios.post('/chatbot1/auto-upload/', {}, {
         headers: {
           'Content-Type': 'application/json',
