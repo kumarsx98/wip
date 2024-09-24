@@ -3,11 +3,10 @@ $djangoPath = "E:\_wip\ous_agile_devops_ai\oad_ai"
 $frontendPath = "E:\_wip\ous_agile_devops_ai\oad_ai\oad_ai_frontend"
 
 # Define the ports
-$djangoPort = 8001
-$frontendPort = 3001
+$ports = @(8001, 3001)
 
 # Define the time limit
-$timeLimit = 7050 # ~2 hours
+$timeLimit = 7050 # 2 hours
 $startTime = Get-Date
 $endTime = $startTime.AddSeconds($timeLimit)
 
@@ -31,7 +30,6 @@ function Stop-ProcessByPort {
     )
     $processId = Test-Port -port $port
     if ($processId) {
-        Write-Host "Stopping process with ID $processId on port $port"
         Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
 }
@@ -39,42 +37,14 @@ function Stop-ProcessByPort {
 # Function to start Django and frontend services
 function Start-Services {
     # Stop Django server if running
-    Stop-ProcessByPort -port $djangoPort
-
+    Stop-ProcessByPort -port 8001
     # Start Django server
-    Write-Host "Starting Django server on port $djangoPort"
-    Start-Process -NoNewWindow -FilePath "cmd.exe" -ArgumentList "/c E: && cd $djangoPath && .venv\Scripts\activate && cd $djangoPath && python manage.py runserver 0.0.0.0:$djangoPort --noreload" -PassThru | Out-Null
-
-    # Print Django server status
-    $hostname = [System.Net.Dns]::GetHostName()
-    $localIP = [System.Net.Dns]::GetHostByName($hostname).AddressList[0].ToString()
-    Start-Sleep -Seconds 10 # Give some time for the server to start
-    if (Test-Port -port $djangoPort) {
-        Write-Host "Django server started successfully!"
-        Write-Host "Django can be viewed in the browser at the below URLs:"
-        Write-Host "  Local:            http://127.0.0.1:$djangoPort"
-        Write-Host "  On Your Network:  http://$localIP:$djangoPort"
-    } else {
-        Write-Host "Failed to start the Django server."
-    }
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $djangoPath && .venv\Scripts\activate && cd $djangoPath && python manage.py runserver 0.0.0.0:8001 --noreload" -NoNewWindow
 
     # Stop frontend service if running
-    Stop-ProcessByPort -port $frontendPort
-
+    Stop-ProcessByPort -port 3001
     # Start frontend service
-    Write-Host "Starting React frontend on port $frontendPort"
-    Start-Process -NoNewWindow -FilePath "cmd.exe" -ArgumentList "/c E: && cd $frontendPath && npm run build && set PORT=$frontendPort && npm start" -PassThru | Out-Null
-
-    # Print React frontend status
-    Start-Sleep -Seconds 10 # Give some time for the server to start
-    if (Test-Port -port $frontendPort) {
-        Write-Host "React frontend started successfully!"
-        Write-Host "Frontend can be viewed in the browser at the below URLs:"
-        Write-Host "  Local:            http://127.0.0.1:$frontendPort"
-        Write-Host "  On Your Network:  http://$localIP:$frontendPort"
-    } else {
-        Write-Host "Failed to start the React frontend."
-    }
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/c E: && cd $frontendPath && npm run build && npm start" -NoNewWindow
 }
 
 # Start services initially
@@ -89,11 +59,8 @@ while ((Get-Date) -lt $endTime) {
 Write-Host "Timeout of $timeLimit seconds reached. Terminating job."
 
 # Clean up processes if necessary
-try {
-    Stop-ProcessByPort -port $djangoPort
-    Stop-ProcessByPort -port $frontendPort
-} catch {
-    Write-Warning "Failed to stop some processes: $_"
-} finally {
-    Write-Host "Processes terminated."
-}
+Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue
+
+Write-Host "Django backend is accessible at: http://10.72.19.8:8001/"
+Write-Host "React frontend is accessible at: http://10.72.19.8:3001/"
