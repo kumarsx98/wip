@@ -19,8 +19,7 @@ ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 # Security settings
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'localhost:8000', 'localhost:3000', 'localhost:3001','10.72.19.8' ,
-    '10.72.19.8:8001']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.72.19.8']
 
 # API keys and tokens
 ENCRYPTION_KEY = config('ENCRYPTION_KEY')
@@ -42,8 +41,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'djangosaml2.middleware.SamlSessionMiddleware', 'csp.middleware.CSPMiddleware',
-    # Add custom middleware for X-Frame-Options
-    'oad_ai.middleware.XFrameOptionsMiddleware',  # Make sure to put this above default XFrameOptions middleware
+    # Add custom middleware for X-Frame-Options if needed
 ]
 
 # URL and template configuration
@@ -85,7 +83,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://localhost:3001"]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://10.72.19.8"
+]
+
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://10.72.19.8'
+]
 
 # REST Framework settings
 REST_FRAMEWORK = {
@@ -142,15 +151,20 @@ SAML_CONFIG = {
     },
     'metadata': {'local': [os.path.join(BASE_DIR, 'idp_metadata.xml')],},
     'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'), 'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
-    'encryption_keypairs': [{
-        'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'), 'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
+    'encryption_keypairs': [ {
+        'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'),
+        'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
     }],
     'valid_for': 24, 'debug': True,
 }
-SAML_ATTRIBUTE_MAPPING = {'email': ('email',), 'firstName': ('first_name',), 'lastName': ('last_name',),}
+SAML_ATTRIBUTE_MAPPING = {
+    'email': ('email',),
+    'firstName': ('first_name',),
+    'lastName': ('last_name',),
+}
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True  # Set to True in production
+CSRF_COOKIE_SECURE = True     # Set to True in production
 SAML_METADATA_PATH = os.path.join(BASE_DIR, 'sp_metadata.xml')
 
 LOGIN_URL = '/saml2/login/'
