@@ -1,39 +1,7 @@
+//autouploadmanger.js:
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-
-// Retry Axios requests up to 3 times if they fail
-axios.defaults.withCredentials = true;
-axios.defaults.retry = 3;
-axios.defaults.retryDelay = 1000;
-
-// Set up Axios to retry requests
-axios.interceptors.response.use(undefined, function axiosRetryInterceptor(err) {
-  const config = err.config;
-  if (!config || !config.retry) return Promise.reject(err);
-
-  // Set retry count
-  config.__retryCount = config.__retryCount || 0;
-
-  // Check if we've maxed out the retries
-  if (config.__retryCount >= config.retry) {
-    return Promise.reject(err);
-  }
-
-  // Increment the retry count
-  config.__retryCount += 1;
-
-  // Create new promise to handle exponential backoff
-  const backoff = new Promise(function(resolve) {
-    setTimeout(function() {
-      resolve();
-    }, config.retryDelay || 1);
-  });
-
-  // Return the promise in which recalls axios with the new configuration
-  return backoff.then(function() {
-    return axios(config);
-  });
-});
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -46,9 +14,7 @@ const AutoUploadManager = () => {
   // Fetch the list of previews and update upload details state
   const fetchPreviews = async () => {
     try {
-      console.log("Fetching previews");
       const response = await axios.get('/chatbot1/list-previews/');
-      console.log("Fetched previews:", response.data);
       return response.data.previews || [];
     } catch (error) {
       console.error('Error fetching previews:', error);
@@ -59,22 +25,21 @@ const AutoUploadManager = () => {
   // Fetch the upload status and update the state including preview URLs
   const fetchUploadStatus = async () => {
     try {
-      console.log("Fetching upload status");
       const response = await axios.get('/chatbot1/get-upload-status/', {
         headers: {
           'X-CSRFToken': getCookie('csrftoken'),
         },
       });
-      console.log("Fetched upload status:", response.data);
 
       if (response.data.status === 'success') {
         const previews = await fetchPreviews();
         const updatedDetails = response.data.upload_details.map(detail => {
           const encodedFileName = encodeURIComponent(detail.file_name);
+
           const previewUrl = previews.find(preview => preview.includes(detail.file_name)) || '';
           return {
             ...detail,
-            preview_url: previewUrl ? `http://10.72.19.8:8001/media/previews/${encodedFileName}` : 'Not available',
+            preview_url: previewUrl ? `http://localhost:8001/media/previews/${encodedFileName}` : 'Not available'
           };
         });
         setUploadDetails(updatedDetails);
@@ -89,7 +54,6 @@ const AutoUploadManager = () => {
   };
 
   useEffect(() => {
-    console.log("AutoUploadManager component is mounted");
     axios.defaults.withCredentials = true;
 
     const fetchData = async () => {
@@ -97,7 +61,7 @@ const AutoUploadManager = () => {
     };
 
     fetchData();
-    const intervalId = setInterval(fetchData, 60000); // Refresh every 1 minute
+    const intervalId = setInterval(fetchData, 600000); // Refresh every 1 minute
 
     return () => {
       clearInterval(intervalId);
