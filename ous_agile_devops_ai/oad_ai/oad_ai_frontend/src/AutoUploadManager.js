@@ -25,7 +25,7 @@ const AutoUploadManager = () => {
         const previewUrl = previews.find((preview) => preview.includes(detail.file_name)) || '';
         return {
           ...detail,
-          preview_url: previewUrl ? `http://localhost:8001/media/previews/${encodedFileName}` : 'Not available',
+          preview_url: previewUrl ? `http://10.72.19.8:8001/media/previews/${encodedFileName}` : 'Not available',
         };
       });
       setUploadDetails(updatedDetails);
