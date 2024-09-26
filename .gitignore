@@ -10,7 +10,7 @@ ous_agile_devops_ai/oad_ai/oad_ai_frontend/build/
 ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/.cache/
 
 # Node modules
-node_modules/
+
 
 # Log files
 ous_agile_devops_ai/oad_ai/debug.log
