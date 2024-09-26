@@ -26,13 +26,14 @@ from django.views.decorators.http import require_GET, require_http_methods
 from saml2.config import SPConfig
 from saml2.metadata import create_metadata_string
 from .models import Source  # Make sure to import your Source model
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
 scheduler_thread = None
 scheduler_running = False
 ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
-
+PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL
 
 @csrf_exempt
 def auto_upload(request):
@@ -52,15 +53,63 @@ def auto_upload(request):
 def get_upload_status_view(request):
     global scheduler_running
     if request.method == 'GET':
-        upload_details = UploadRecord.objects.order_by('-timestamp')[:10].values(
-            'file_name', 'source', 'status', 'task_id', 'timestamp'
-        )
-        return JsonResponse({
-            'status': 'success',
-            'upload_details': list(upload_details),
-            'scheduler_status': 'Running' if scheduler_running else 'Not running'
-        })
+        try:
+            # Retrieve all upload records
+            upload_records = list(UploadRecord.objects.all().values(
+                'file_name', 'source', 'status', 'task_id', 'timestamp'
+            ).order_by('-timestamp'))
+            logger.info(f"Upload records: {upload_records}")
+
+            # Fetch all preview files
+            previews = get_previews()
+            logger.info(f"Preview files: {previews}")
+
+            # Initialize combined upload details
+            upload_details = []
+            existing_files = set()
+
+            # Add upload records to the details list
+            for record in upload_records:
+                file_name = record['file_name']
+                existing_files.add(file_name)
+                upload_details.append(record)
+
+            # Add previews to the details list if not already included
+            for preview in previews:
+                if preview not in existing_files:
+                    preview_url = f"{PREVIEW_BASE_URL}/media/previews/{urllib.parse.quote(preview)}"
+                    upload_details.append({
+                        'file_name': preview,
+                        'source': 'N/A',
+                        'status': 'NOT UPLOADED',
+                        'preview_url': preview_url,
+                        'task_id': None,
+                        'timestamp': None,
+                    })
+
+            logger.info(f"Combined upload details: {upload_details}")
+
+            return JsonResponse({
+                'status': 'success',
+                'upload_details': upload_details,
+                'scheduler_status': 'Running' if scheduler_running else 'Not running'
+            })
+        except Exception as e:
+            logger.error(f"Error fetching upload status: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+
+def list_previews(request):
+    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+    if not os.path.exists(preview_dir):
+        return JsonResponse({'previews': []})
+
+    previews = [
+        'previews/' + f for f in os.listdir(preview_dir)
+        if os.path.isfile(os.path.join(preview_dir, f))
+    ]
+    return JsonResponse({'previews': previews})
 
 
 @csrf_exempt
@@ -75,6 +124,15 @@ def start_scheduler_view(request):
         else:
             return JsonResponse({'status': 'success', 'message': 'Scheduler is already running'})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+
+def get_previews():
+    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+    if not os.path.exists(preview_dir):
+        os.makedirs(preview_dir)
+    previews = [f for f in os.listdir(preview_dir) if os.path.isfile(os.path.join(preview_dir, f))]
+    logger.info(f"Previews found in directory: {previews}")
+    return previews
 
 
 @csrf_exempt
@@ -369,16 +427,7 @@ def chat_with_source(request, source_name):
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
 
-def list_previews(request):
-    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
-    if not os.path.exists(preview_dir):
-        return JsonResponse({'previews': []})
 
-    previews = [
-        'previews/' + f for f in os.listdir(preview_dir)
-        if os.path.isfile(os.path.join(preview_dir, f))
-    ]
-    return JsonResponse({'previews': previews})
 
 
 @require_http_methods(["DELETE"])
