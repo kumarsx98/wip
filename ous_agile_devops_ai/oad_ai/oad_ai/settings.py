@@ -19,7 +19,7 @@ ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 # Security settings
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False, cast=bool)
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.72.19.8']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.72.19.8', 'oad-ai.abbvienet.com']
 
 # API keys and tokens
 ENCRYPTION_KEY = config('ENCRYPTION_KEY')
@@ -86,14 +86,16 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "http://10.72.19.8"
+    "http://10.72.19.8",
+    "http://oad-ai.abbvienet.com"
 ]
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',
-    'http://10.72.19.8'
+    'http://10.72.19.8',
+    'http://oad-ai.abbvienet.com'
 ]
 
 # REST Framework settings
