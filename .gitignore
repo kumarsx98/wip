@@ -17,3 +17,5 @@ ous_agile_devops_ai/oad_ai/debug.log
 ous_agile_devops_ai/oad_ai/django.log
 .env
 .envserver
+
+ous_agile_devops_ai\oad_ai\db.sqlite3
