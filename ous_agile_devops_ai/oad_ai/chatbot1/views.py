@@ -670,14 +670,14 @@ def current_user(request):
     })
 
 
-class CustomAssertionConsumerServiceView(AssertionConsumerServiceView):
+'''class CustomAssertionConsumerServiceView(AssertionConsumerServiceView):
     def post(self, request, *args, **kwargs):
         logger.info(f"Received SAML response: {request.POST.get('SAMLResponse')}")
         response = super().post(request, *args, **kwargs)
         if self.request.user.is_authenticated:
             return HttpResponseRedirect('http://localhost:3001')  # Redirect to your React frontend URL
         else:
-            return HttpResponseRedirect('http://localhost:3001/login-failed')  # Handle failed authentication
+            return HttpResponseRedirect('http://localhost:3001/login-failed')  # Handle failed authentication '''
 
 
 def sp_metadata(request):
