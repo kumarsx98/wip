@@ -9,8 +9,8 @@ ous_agile_devops_ai/oad_ai/oad_ai_frontend/build/
 # Ignore cache directories and files
 ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/.cache/
 
-# Node modules
-
+#Media Files
+ous_agile_devops_ai\oad_ai\media
 
 # Log files
 ous_agile_devops_ai/oad_ai/debug.log
