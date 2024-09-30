@@ -11,6 +11,7 @@ import AutoUploadManager from './AutoUploadManager';
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from './ProtectedRoute';
 import FilePreview from './FilePreview';
+import WebSocketComponent from './WebSocketComponent'; // Importing the WebSocket component
 
 import axios from 'axios';
 axios.defaults.withCredentials = true;
@@ -24,7 +25,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/sources" element={<ListSources />} />
-          <Route path="/sources/:sourceName/documents" element={<Documents />} /> {/* Update the route to use Documents */}
+          <Route path="/sources/:sourceName/documents" element={<Documents />} />
           <Route path="/auto-upload" element={<AutoUploadManager />} />
           <Route
             path="/create-source"
@@ -44,6 +45,7 @@ function App() {
           />
           <Route path="/chat-with-source/:sourceName" element={<ChatWithSource />} />
           <Route path="/media/previews/*" element={<FilePreview />} />
+          <Route path="/websocket-test" element={<WebSocketComponent />} /> {/* Add WebSocket Component route */}
         </Routes>
       </Router>
     </AuthProvider>

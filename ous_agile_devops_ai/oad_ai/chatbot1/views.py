@@ -38,15 +38,20 @@ PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL
 @csrf_exempt
 def auto_upload(request):
     if request.method == 'POST':
-        result = process_documents()
-        return JsonResponse({
-            "status": "success",
-            "message": "Auto-upload process completed",
-            "processed_files": result['processed_files'],
-            "unprocessed_files": result['unprocessed_files']
-        })
+        try:
+            result = process_documents()
+            logger.info("Auto-upload process completed successfully")
+            return JsonResponse({
+                "status": "success",
+                "message": "Auto-upload process completed",
+                "processed_files": result['processed_files'],
+                "unprocessed_files": result['unprocessed_files']
+            })
+        except Exception as e:
+            logger.error(f"Auto-upload failed: {str(e)}", exc_info=True)
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
 @csrf_exempt
