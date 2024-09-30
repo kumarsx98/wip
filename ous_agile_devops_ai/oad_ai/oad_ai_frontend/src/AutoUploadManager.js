@@ -9,10 +9,6 @@ const AutoUploadManager = () => {
   const [autoUploadProgress, setAutoUploadProgress] = useState(0);
   const [autoUploadSteps, setAutoUploadSteps] = useState([]);
 
-  useEffect(() => {
-    fetchUploadStatus();
-  }, []);
-
   const fetchUploadStatus = async () => {
     try {
       const response = await axios.get('/chatbot1/get-upload-status/', {
@@ -35,6 +31,10 @@ const AutoUploadManager = () => {
       setMessage(`Error fetching upload status: ${error.message}`);
     }
   };
+
+  useEffect(() => {
+    fetchUploadStatus();
+  }, [fetchUploadStatus]);
 
   const fetchPreviews = async () => {
     try {
