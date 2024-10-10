@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base URL here
 const PAGE_SIZE = 10; // Number of sources per page
 
 function ListSources() {
@@ -17,7 +18,8 @@ function ListSources() {
     setMessage('');
 
     try {
-      const response = await axios.get('/chatbot1/list-sources/', {
+      // Use baseURL for the backend API call
+      const response = await axios.get(`${baseURL}/chatbot1/list-sources/`, {
         headers: {
           'Content-Type': 'application/json',
         },

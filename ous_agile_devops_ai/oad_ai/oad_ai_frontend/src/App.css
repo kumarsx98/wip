@@ -6,46 +6,40 @@ body {
   background-color: black;
 }
 
-.source-name-container {
-  text-align: center;
-  margin: 1px 0;
-  padding: 1px;
-  background-color: #e0e0e0;
-  border-radius: 1px;
-  font-size: 0.8em;
-}
-
-.app {
+/* Updated styling from old app.css */
+.Chatbot {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  width: 100%;
-  background-color: white;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: black;
 }
 
 .logo {
   width: 200px;
   height: auto;
-  margin: 20px auto;
+  margin: 0px auto 0px; /* Reduce the margin to move the logo up */
   display: block;
-  /* Invert colors if the logo is dark on a light background */
-  /* filter: invert(1); */
 }
 
 .container {
   display: flex;
   flex-direction: column;
-  width: calc(100% - 80px);
+  align-items: center; /* Center align items */
+  justify-content: flex-start; /* Align items at the start */
+  width: 70%; /* Increase the width */
   max-width: 1000px;
   flex-grow: 1;
-  padding: 40px;
+  padding: 50px;
   box-sizing: border-box;
-  margin: 0 auto;
+  margin: 1px auto; /* Reduce margin to use more of the UI */
   background-color: #fff8dc;
-  border-radius: 10px 10px 0 0;
+  border-radius: 10px;
+  height: 60vh; /* Adjust this value to increase the height */
 }
 
-/* General styling for ConversationBox based on source */
+/* General styling for ConversationBox */
 .conversation-box-public {
   background-color: lightblue; /* Public chatbot background color */
   border: 2px solid blue;
@@ -56,27 +50,27 @@ body {
   border: 2px solid green;
 }
 
-/* General styles for the conversation box */
 .conversation-box {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  height: 60vh;
-  padding: 20px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 80%; /* Full width within the container */
+  height: 70vh; /* Adjust height as necessary */
+  padding: 30px;
   border: 1px solid #ccc;
   border-radius: 5px;
   overflow-y: auto;
-  margin-bottom: 20px;
-  box-sizing: border-box;
+  background-color: #bfcbd9;
+  position: relative;
+  margin-bottom: 10px; /* Reduce bottom margin to minimize gap */
 }
 
 .message {
   margin-bottom: 10px;
-  padding: 15px;
+  padding: 10px;
   border-radius: 5px;
   position: relative;
-  max-width: 70%;
-  width: calc(100% - 80px);
 }
 
 .user {
@@ -84,8 +78,6 @@ body {
   align-self: flex-end;
   color: #000;
   border: 1px solid #000;
-  margin-left: auto;
-  margin-right: 40px;
 }
 
 .bot {
@@ -93,7 +85,7 @@ body {
   align-self: flex-start;
   color: #fff;
   border: 1px solid #000;
-  margin-left: 40px;
+  position: relative;
 }
 
 .copy-button {
@@ -120,9 +112,13 @@ body {
 }
 
 .input-box {
-  width: 100%;
-  margin-top: 20px;
-  padding: 20px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  width: 80%; /* Full width within the container */
+  padding: 20px;
   box-sizing: border-box;
   background-color: #bfcbd9;
   border-radius: 0 0 10px 10px;
@@ -130,12 +126,15 @@ body {
 
 .input-container {
   display: flex;
-  width: 100%;
+  align-items: center;
+  width: 80%;
 }
 
 .input-container input {
   flex: 1;
-  padding: 10px;
+  padding: 10px; /* Increase padding */
+  margin-bottom: 5px;
+  margin-right: 10px;
   font-family: Arial, sans-serif;
   font-size: 16px;
   background-color: #8ac4ff;
@@ -145,7 +144,7 @@ body {
 }
 
 .input-container button {
-  padding: 10px 20px;
+  padding: 10px 20px; /* Increase padding */
   background-color: #333;
   color: #fff;
   font-family: Arial, sans-serif;

@@ -27,6 +27,7 @@ from saml2.config import SPConfig
 from saml2.metadata import create_metadata_string
 from .models import Source  # Make sure to import your Source model
 import urllib.parse
+from .document_uploader import upload_document_to_iliad, check_upload_status
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,14 @@ scheduler_running = False
 ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL
 
+
+
+
 @csrf_exempt
 def auto_upload(request):
     if request.method == 'POST':
         try:
             result = process_documents()
-            logger.info("Auto-upload process completed successfully")
             return JsonResponse({
                 "status": "success",
                 "message": "Auto-upload process completed",
@@ -48,38 +51,24 @@ def auto_upload(request):
                 "unprocessed_files": result['unprocessed_files']
             })
         except Exception as e:
-            logger.error(f"Auto-upload failed: {str(e)}", exc_info=True)
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 
 @csrf_exempt
 def get_upload_status_view(request):
-    global scheduler_running
     if request.method == 'GET':
         try:
-            # Retrieve all upload records
-            upload_records = list(UploadRecord.objects.all().values(
-                'file_name', 'source', 'status', 'task_id', 'timestamp'
-            ).order_by('-timestamp'))
-            logger.info(f"Upload records: {upload_records}")
-
-            # Fetch all preview files
+            upload_records = list(UploadRecord.objects.all().values('file_name', 'source', 'status', 'task_id', 'timestamp').order_by('-timestamp'))
             previews = get_previews()
-            logger.info(f"Preview files: {previews}")
-
-            # Initialize combined upload details
             upload_details = []
-            existing_files = set()
 
-            # Add upload records to the details list
+            # Combine previews with upload records
+            existing_files = set()
             for record in upload_records:
-                file_name = record['file_name']
-                existing_files.add(file_name)
+                existing_files.add(record['file_name'])
                 upload_details.append(record)
 
-            # Add previews to the details list if not already included
             for preview in previews:
                 if preview not in existing_files:
                     preview_url = f"{PREVIEW_BASE_URL}/media/previews/{urllib.parse.quote(preview)}"
@@ -92,15 +81,8 @@ def get_upload_status_view(request):
                         'timestamp': None,
                     })
 
-            logger.info(f"Combined upload details: {upload_details}")
-
-            return JsonResponse({
-                'status': 'success',
-                'upload_details': upload_details,
-                'scheduler_status': 'Running' if scheduler_running else 'Not running'
-            })
+            return JsonResponse({'status': 'success', 'upload_details': upload_details, 'scheduler_status': 'Running' if scheduler_running else 'Not running'})
         except Exception as e:
-            logger.error(f"Error fetching upload status: {str(e)}")
             return JsonResponse({'status': 'error', 'message': str(e)})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
@@ -109,11 +91,7 @@ def list_previews(request):
     preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
     if not os.path.exists(preview_dir):
         return JsonResponse({'previews': []})
-
-    previews = [
-        'previews/' + f for f in os.listdir(preview_dir)
-        if os.path.isfile(os.path.join(preview_dir, f))
-    ]
+    previews = ['previews/' + f for f in os.listdir(preview_dir) if os.path.isfile(os.path.join(preview_dir, f))]
     return JsonResponse({'previews': previews})
 
 
@@ -131,6 +109,7 @@ def start_scheduler_view(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
+
 def get_previews():
     preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
     if not os.path.exists(preview_dir):
@@ -140,34 +119,31 @@ def get_previews():
     return previews
 
 
+
+
 @csrf_exempt
 def upload_document(request, source):
     if request.method == 'POST' and request.FILES.get('file'):
         file = request.FILES['file']
         result = upload_document_to_iliad(source, file)
 
-        print(f"Upload result: {json.dumps(result, indent=2)}")
-
         if result['status'] == 'success' and 'task_id' in result:
-            status_result = check_status(source, result['task_id'])
+            status_result = check_upload_status(source, result['task_id'])
 
             response_data = {
                 'status': status_result['status'],
                 'message': status_result['message'],
-                'full_response': status_result['full_response'],
+                'full_response': status_result.get('full_response', {}),
                 'task_id': result['task_id']
             }
 
-            print(f"Status check result: {json.dumps(response_data, indent=2)}")
-
             return JsonResponse(response_data)
         else:
-            print(f"Error result: {json.dumps(result, indent=2)}")
             return JsonResponse(result)
 
     error_response = {'status': 'error', 'message': 'Invalid request'}
-    print(f"Invalid request: {json.dumps(error_response, indent=2)}")
     return JsonResponse(error_response)
+
 
 
 @csrf_exempt
@@ -432,15 +408,38 @@ def chat_with_source(request, source_name):
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
 
-
-
-
+@csrf_exempt
 @require_http_methods(["DELETE"])
 def delete_document(request, source, document_id):
     try:
-        headers = get_api_headers()
+        # Decrypt the API key
+        try:
+            encryption_key = settings.ENCRYPTION_KEY.encode()
+            encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
+            cipher_suite = Fernet(encryption_key)
+            api_key = cipher_suite.decrypt(encrypted_api_key).decode()
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
+
+        ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
+        headers = {
+            "x-api-key": api_key,
+            "x-user-token": settings.AUTH_TOKEN
+        }
         delete_url = f"{ILIAD_URL}/api/v1/sources/{source}/documents/{document_id}"
+
+        # Log request details for debugging
+        logger.debug(f"DELETE URL: {delete_url}")
+        logger.debug(f"Headers: {headers}")
+
         response = requests.delete(delete_url, headers=headers)
+
+        logger.info(f"Response Status Code: {response.status_code}")
+
+        if response.status_code != 204:
+            logger.error(
+                f"Failed to delete document:\nResponse Headers: {response.headers}\nResponse Content: {response.text}")
 
         if response.status_code == 204:
             return JsonResponse({'message': 'Document deleted successfully.'}, status=204)
@@ -448,6 +447,7 @@ def delete_document(request, source, document_id):
             return JsonResponse({'error': response.text}, status=response.status_code)
 
     except requests.RequestException as e:
+        logger.error(f"Request exception: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 

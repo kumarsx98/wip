@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base URL here
+
 function Documents() {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,12 +40,21 @@ function Documents() {
     });
   };
 
+  const checkPreviewAvailability = async (previewUrl) => {
+    try {
+      await axios.get(previewUrl);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const fetchDocuments = async (source) => {
     setIsLoading(true);
     setMessage('');
 
     try {
-      const response = await axios.get(`/chatbot1/list-documents/${source}/`, {
+      const response = await axios.get(`${baseURL}/chatbot1/list-documents/${source}/`, {
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken'),
@@ -52,14 +63,22 @@ function Documents() {
       });
 
       if (response.status === 200 && response.data.documents) {
-        setDocuments(
-          response.data.documents.documents.map((doc) => ({
+        const docPromises = response.data.documents.documents.map(async (doc) => {
+          const filename = doc.filename.replace(`${sourceName}#`, ''); // Remove sourceName prefix if present
+          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(`${sourceName}#${filename}`)}`;
+
+          return {
             ...doc,
             path: trimPath(doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`),
-            preview_url: `/media/previews/${source}/${doc.filename}`,
-          }))
-        );
-        setMessage(response.data.documents.documents.length === 0 ? 'No documents found.' : '');
+            displayName: filename,
+            preview_url: previewUrl,
+            isPreviewAvailable: await checkPreviewAvailability(previewUrl),
+          };
+        });
+
+        const docs = await Promise.all(docPromises);
+        setDocuments(docs);
+        setMessage(docs.length === 0 ? 'No documents found.' : '');
       } else {
         setMessage('An error occurred while fetching the documents.');
       }
@@ -75,7 +94,7 @@ function Documents() {
     if (sourceName) {
       fetchDocuments(sourceName);
     }
-  }, [sourceName, fetchDocuments]);
+  }, [sourceName]);
 
   const getCookie = (name) => {
     let cookieValue = null;
@@ -94,7 +113,7 @@ function Documents() {
 
   const handleSyncSource = async () => {
     try {
-      const response = await axios.post(`/chatbot1/sync-source/${sourceName}/`, {}, {
+      const response = await axios.post(`${baseURL}/chatbot1/sync-source/${sourceName}/`, {}, {
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': getCookie('csrftoken'),
@@ -132,7 +151,7 @@ function Documents() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await axios.post(`/chatbot1/upload-document/${sourceName}/`, formData, {
+      const response = await axios.post(`${baseURL}/chatbot1/upload-document/${sourceName}/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'X-CSRFToken': getCookie('csrftoken'),
@@ -177,7 +196,7 @@ function Documents() {
     setMessage('');
 
     try {
-      const response = await axios.delete(`/chatbot1/delete-document/${sourceName}/${documentId}/`, {
+      const response = await axios.delete(`${baseURL}/chatbot1/delete-document/${sourceName}/${documentId}/`, {
         headers: {
           'X-CSRFToken': getCookie('csrftoken'),
         },
@@ -201,7 +220,7 @@ function Documents() {
   const pollUploadStatus = async (source, taskId, maxAttempts = 10) => {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const response = await axios.get(`/chatbot1/check-upload-status/${source}/${taskId}/`, {
+        const response = await axios.get(`${baseURL}/chatbot1/check-upload-status/${source}/${taskId}/`, {
           headers: {
             'X-CSRFToken': getCookie('csrftoken'),
           },
@@ -241,7 +260,7 @@ function Documents() {
   const renderDocuments = () => (
     <div>
       <h2 style={{ color: '#444', marginTop: '20px' }}>Documents in {sourceName}</h2>
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
         <button onClick={() => navigate('/sources')} style={buttonStyle}>Back to Sources</button>
         <input type="file" onChange={handleFileChange} style={{ marginRight: '10px' }} />
         <button onClick={handleUpload} style={uploadButtonStyle}>Upload Document</button>
@@ -250,7 +269,7 @@ function Documents() {
           href={`/chat-with-source/${sourceName}`}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ backgroundColor: '#ff7f0e', color: '#fff', border: 'none', padding: '10px 20px', cursor: 'pointer', display: 'inline-block', textDecoration: 'none' }}
+          style={chatButtonStyle}
         >
           Chat with Source
         </a>
@@ -283,10 +302,10 @@ function Documents() {
             <tbody>
               {sortDocuments(documents).map((document, index) => (
                 <tr key={document.id || index} style={{ backgroundColor: '#fff' }}>
-                  <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.filename}</td>
+                  <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.displayName}</td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.path}</td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
-                    {document.preview_url ? (
+                    {document.isPreviewAvailable ? (
                       <a
                         href={document.preview_url}
                         target="_blank"
@@ -296,7 +315,7 @@ function Documents() {
                         View Preview
                       </a>
                     ) : (
-                      'Not available'
+                      'File is not available for preview' // Display this message if preview is not available
                     )}
                   </td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
@@ -324,7 +343,10 @@ function Documents() {
     border: 'none',
     padding: '10px 20px',
     marginRight: '10px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontSize: '13px',
+    display: 'inline-block',
+    textDecoration: 'none'
   };
 
   const uploadButtonStyle = {
@@ -333,7 +355,9 @@ function Documents() {
     border: 'none',
     padding: '10px 20px',
     marginRight: '10px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontSize: '13px',
+    display: 'inline-block'
   };
 
   const syncButtonStyle = {
@@ -342,7 +366,21 @@ function Documents() {
     border: 'none',
     padding: '10px 20px',
     marginRight: '10px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontSize: '13px',
+    display: 'inline-block'
+  };
+
+  const chatButtonStyle = {
+    backgroundColor: '#ff7f0e',
+    color: '#fff',
+    border: 'none',
+    padding: '8px 16px', // Adjust these values to match other buttons
+    cursor: 'pointer',
+    marginRight: '10px',
+    display: 'inline-block',
+    textDecoration: 'none',
+    fontSize: '14px' // Adjust this font size if needed
   };
 
   return (

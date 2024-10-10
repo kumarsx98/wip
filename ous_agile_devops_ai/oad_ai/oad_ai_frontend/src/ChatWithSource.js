@@ -6,6 +6,9 @@ import ConversationBox from './ConversationBox';
 import InputBox from './InputBox';
 import './App.css';
 
+
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base URL here
+
 const ChatWithSource = () => {
     const { sourceName } = useParams();
     const [messages, setMessages] = useState([]);
@@ -21,7 +24,7 @@ const ChatWithSource = () => {
     }, [messages]);
 
     useEffect(() => {
-
+        // Add any additional useEffect actions if needed when sourceName changes
     }, [sourceName]);
 
     const sendMessage = async () => {
@@ -33,7 +36,7 @@ const ChatWithSource = () => {
         setShowSpinner(true);
 
         try {
-            const response = await axios.post(`/chat-with-source/${sourceName}/`, {
+            const response = await axios.post(`${baseURL}/chat-with-source/${sourceName}/`, {
                 question: input,
                 filters: JSON.stringify({}),
             });
@@ -84,6 +87,7 @@ const ChatWithSource = () => {
         response = response.replace(urlRegex, (match, sometext) => `<a href="http://go/${sometext}" target="_blank" rel="noopener noreferrer">go/${sometext}</a>`);
         response = response.replace(emailRegex, (match, email) => `<a href="mailto:${email}">${email}</a>`);
 
+        // Return the formatted response
         return response;
     };
 
@@ -106,6 +110,7 @@ const ChatWithSource = () => {
                 messages={messages}
                 isLoading={isLoading}
                 conversationBoxRef={conversationBoxRef}
+                sourceName={sourceName} // Pass the source name to ConversationBox
             />
             <InputBox
                 question={input}

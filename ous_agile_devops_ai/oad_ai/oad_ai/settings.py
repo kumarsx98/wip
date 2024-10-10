@@ -6,10 +6,10 @@ from datetime import timedelta
 import saml2
 from saml2.saml import NAMEID_FORMAT_UNSPECIFIED
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Media files configuration
+# Media configuration
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 PREVIEW_BASE_URL = MEDIA_URL
@@ -30,28 +30,47 @@ ILIAD_API_KEY = fernet.decrypt(ENCRYPTED_API_KEY.encode()).decode()
 
 # Installed apps and middleware
 INSTALLED_APPS = [
-    'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions',
-    'django.contrib.messages', 'django.contrib.staticfiles', 'chatbot1', 'corsheaders', 'channels',
-    'rest_framework', 'rest_framework_simplejwt', 'djangosaml2', 'csp'
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'chatbot1',
+    'corsheaders',  # Add 'corsheaders' to installed apps
+    'channels',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'djangosaml2',
+    'csp',
 ]
 
 MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware', 'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware', 'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'djangosaml2.middleware.SamlSessionMiddleware', 'csp.middleware.CSPMiddleware',
-    'oad_ai.timeout_middleware.TimeoutMiddleware',  # Add custom timeout middleware
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Add corsheaders middleware
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'djangosaml2.middleware.SamlSessionMiddleware',
+    'csp.middleware.CSPMiddleware',
+    'oad_ai.timeout_middleware.TimeoutMiddleware',
 ]
 
 # URL and template configuration
 ROOT_URLCONF = 'oad_ai.urls'
 TEMPLATES = [{
-    'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIRS': [], 'APP_DIRS': True,
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [],
+    'APP_DIRS': True,
     'OPTIONS': {
         'context_processors': [
-            'django.template.context_processors.debug', 'django.template.context_processors.request',
-            'django.contrib.auth.context_processors.auth', 'django.contrib.messages.context_processors.messages',
+            'django.template.context_processors.debug',
+            'django.template.context_processors.request',
+            'django.contrib.auth.context_processors.auth',
+            'django.contrib.messages.context_processors.messages',
         ],
     },
 }]
@@ -83,11 +102,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
+CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://10.72.19.8",
-    "http://oad-ai.abbvienet.com"
+    "http://oad-ai.abbvienet.com:3001",
 ]
 
 # CSRF settings
@@ -95,31 +114,43 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://10.72.19.8',
-    'http://oad-ai.abbvienet.com'
+    'http://oad-ai.abbvienet.com:3001',
 ]
 
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication', 'djangosaml2.backends.Saml2Backend',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'djangosaml2.backends.Saml2Backend',
     )
 }
 
 # JWT settings
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), 'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False, 'BLACKLIST_AFTER_ROTATION': True, 'UPDATE_LAST_LOGIN': False,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
 
-    'ALGORITHM': 'HS256', 'SIGNING_KEY': SECRET_KEY, 'VERIFYING_KEY': None, 'AUDIENCE': None, 'ISSUER': None,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
 
-    'AUTH_HEADER_TYPES': ('Bearer',), 'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION', 'USER_ID_FIELD': 'id',
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',), 'TOKEN_TYPE_CLAIM': 'token_type',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
 
     'JTI_CLAIM': 'jti',
 
-    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp', 'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
@@ -127,17 +158,24 @@ SIMPLE_JWT = {
 ASGI_APPLICATION = 'oad_ai.asgi.application'
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer', 'CONFIG': {"hosts": [('127.0.0.1', 6379)],},
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {"hosts": [('127.0.0.1', 6379)]},
     },
 }
 
 # SAML2 settings
-AUTHENTICATION_BACKENDS = ('djangosaml2.backends.Saml2Backend', 'django.contrib.auth.backends.ModelBackend',)
+AUTHENTICATION_BACKENDS = (
+    'djangosaml2.backends.Saml2Backend',
+    'django.contrib.auth.backends.ModelBackend',
+)
 SAML_CONFIG = {
     'xmlsec_binary': r'C:\Users\AMX1\Downloads\Repo\OAD_Auto\xmlsec\libxmlsec-1.2.18.win32\bin\xmlsec.exe',
-    'entityid': 'http://localhost:8001/saml2/metadata/', 'allow_unknown_attributes': True, 'service': {
+    'entityid': 'http://localhost:8001/saml2/metadata/',
+    'allow_unknown_attributes': True,
+    'service': {
         'sp': {
-            'name': 'Your SP Name', 'endpoints': {
+            'name': 'Your SP Name',
+            'endpoints': {
                 'assertion_consumer_service': [
                     ('http://localhost:8001/saml2/acs/', saml2.BINDING_HTTP_REDIRECT),
                 ],
@@ -145,19 +183,31 @@ SAML_CONFIG = {
                     ('http://localhost:8001/saml2/slo/', saml2.BINDING_HTTP_REDIRECT),
                 ],
             },
-            'allow_unsolicited': True, 'authn_requests_signed': False, 'logout_requests_signed': True, 'want_assertions_signed': True,
-            'want_response_signed': False, 'name_id_format': NAMEID_FORMAT_UNSPECIFIED, 'force_authn': False,
-            'name_id_policy_format': NAMEID_FORMAT_UNSPECIFIED, 'sign_alg': saml2.xmldsig.SIG_RSA_SHA256,
-            'digest_alg': saml2.xmldsig.DIGEST_SHA256, 'required_attributes': ['email'], 'optional_attributes': ['firstName', 'lastName'],
+            'allow_unsolicited': True,
+            'authn_requests_signed': False,
+            'logout_requests_signed': True,
+            'want_assertions_signed': True,
+            'want_response_signed': False,
+            'name_id_format': NAMEID_FORMAT_UNSPECIFIED,
+            'force_authn': False,
+            'name_id_policy_format': NAMEID_FORMAT_UNSPECIFIED,
+            'sign_alg': saml2.xmldsig.SIG_RSA_SHA256,
+            'digest_alg': saml2.xmldsig.DIGEST_SHA256,
+            'required_attributes': ['email'],
+            'optional_attributes': ['firstName', 'lastName'],
         },
     },
-    'metadata': {'local': [os.path.join(BASE_DIR, 'idp_metadata.xml')],},
-    'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'), 'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
-    'encryption_keypairs': [ {
-        'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'),
-        'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
-    }],
-    'valid_for': 24, 'debug': True,
+    'metadata': {'local': [os.path.join(BASE_DIR, 'idp_metadata.xml')]},
+    'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'),
+    'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
+    'encryption_keypairs': [
+        {
+            'key_file': os.path.join(BASE_DIR, 'new-idp-key.pem'),
+            'cert_file': os.path.join(BASE_DIR, 'new-idp-cert.pem'),
+        }
+    ],
+    'valid_for': 24,
+    'debug': True,
 }
 SAML_ATTRIBUTE_MAPPING = {
     'email': ('email',),
@@ -175,13 +225,15 @@ LOGOUT_REDIRECT_URL = '/'
 
 # Logging configuration
 LOGGING = {
-    'version': 1, 'disable_existing_loggers': False, 'handlers': {
-        'console': {'class': 'logging.StreamHandler',},
-        'file': {'class': 'logging.FileHandler', 'filename': 'debug.log',},
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+        'file': {'class': 'logging.FileHandler', 'filename': 'debug.log'},
     },
     'loggers': {
-        'django': {'handlers': ['console', 'file'], 'level': 'INFO',},
-        'djangosaml2': {'handlers': ['console', 'file'], 'level': 'DEBUG',},
+        'django': {'handlers': ['console', 'file'], 'level': 'INFO'},
+        'djangosaml2': {'handlers': ['console', 'file'], 'level': 'DEBUG'},
     },
 }
 
@@ -194,7 +246,7 @@ CSP_FONT_SRC = ("'self'", "https:", "data:")
 
 SAML_CREATE_UNKNOWN_USER = True
 SAML_IGNORE_AUTHENTICATED_USERS = False
-SAML2_AUTH = {'BINDING': 'HTTP-REDIRECT',}
+SAML2_AUTH = {'BINDING': 'HTTP-REDIRECT'}
 
 # Request timeout in seconds (2 hours)
 REQUEST_TIMEOUT = 7200
