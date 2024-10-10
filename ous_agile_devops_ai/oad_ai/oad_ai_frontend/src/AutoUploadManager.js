@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
 
-const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
