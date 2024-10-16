@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
+import { v4 as uuidv4 } from 'uuid'; // Import the UUID library
 
+//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
 
 const AutoUploadManager = () => {
@@ -101,7 +103,7 @@ const AutoUploadManager = () => {
 
       const updatedDetailsMap = new Map();
       response.data.upload_details.forEach((detail, index) => {
-        const uniqueId = `${detail.file_name}_${detail.timestamp}_${index}`;
+        const uniqueId = uuidv4(); // Use a UUID library to generate a unique ID
         const encodedFileName = encodeURIComponent(detail.file_name);
         const previewUrl = previews.find((preview) => preview.includes(detail.file_name)) || '';
         const updatedDetail = {
@@ -124,8 +126,16 @@ const AutoUploadManager = () => {
       // Process pending uploads immediately after fetching status
       for (const fileDetail of updatedDetails) {
         if (fileDetail.status === 'PENDING' && !uploadedFiles.has(fileDetail.file_name)) {
-          await handleUploadFile(fileDetail);
-          uploadedFiles.add(fileDetail.file_name);  // Add file name to the set after successful upload
+          try {
+            await handleUploadFile(fileDetail);
+            uploadedFiles.add(fileDetail.file_name);  // Add file name to the set after successful upload
+          } catch (error) {
+            if (error.message.includes('already uploaded')) {
+              console.log(`File ${fileDetail.file_name} has already been uploaded. Skipping...`);
+            } else {
+              throw error;
+            }
+          }
         }
       }
     } catch (error) {

@@ -2,12 +2,11 @@ from django.urls import path
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from djangosaml2.views import LoginView
-from djangosaml2 import views as saml2_views
-
-from .views import chat_with_source
 
 urlpatterns = [
     path('search/', views.api_search, name='api_search'),
+    path('saml2/login/', views.custom_login, name='saml2_login'),
+
     path('', views.search, name='search'),
     path('create-source/', views.create_source, name='create_source'),
     path('sync-source/<str:source>/', views.sync_source, name='sync_source'),
@@ -18,16 +17,19 @@ urlpatterns = [
     path('user-info/', views.user_info, name='user_info'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/current-user/', views.current_user, name='current_user'),
     path('saml2/login/', LoginView.as_view(), name='saml2_login'),
-    path('saml2/acs/', views.CustomAssertionConsumerServiceView.as_view(), name='saml2_acs'),
     path('saml2/metadata/', views.sp_metadata, name='saml2_metadata'),
     path('upload-document/<str:source>/', views.upload_document, name='upload_document'),
     path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status, name='check_upload_status'),
     path('auto-upload/', views.auto_upload, name='auto_upload'),
     path('api/search/', views.api_search, name='api_search'),
-    path('list-previews/', views.list_previews, name='list_previews'),  # new endpoint
+    path('list-previews/', views.list_previews, name='list_previews'),
     path('delete-document/<str:source>/<str:document_id>/', views.delete_document, name='delete_document'),
-    #   path('api/chat-with-source/', views.chat_with_source, name='chat_with_source'),
-    path('chat-with-source/<str:source_name>/', chat_with_source, name='chat-with-source'),
+    path('chat-with-source/<str:source_name>/', views.chat_with_source, name='chat-with-source'),
+
+    # Add session status endpoint
+    path('saml2/session/', views.session_status, name='session_status'),
+
+    # Add logout endpoint
+    path('saml2/logout/', views.custom_logout, name='saml2_logout'),
 ]

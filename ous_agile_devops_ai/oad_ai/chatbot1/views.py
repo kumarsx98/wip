@@ -1,3 +1,5 @@
+
+
 # views.py
 
 import json
@@ -11,7 +13,10 @@ import threading
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 import requests
-
+from django.http import HttpResponseRedirect
+from django.conf import settings
+from django.contrib.auth import login
+from django.contrib.auth.models import User
 import concurrent.futures
 import datetime
 import traceback
@@ -42,17 +47,15 @@ PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL
 @csrf_exempt
 def auto_upload(request):
     if request.method == 'POST':
-        try:
-            result = process_documents()
-            return JsonResponse({
-                "status": "success",
-                "message": "Auto-upload process completed",
-                "processed_files": result['processed_files'],
-                "unprocessed_files": result['unprocessed_files']
-            })
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+        result = process_documents()
+        return JsonResponse({
+            "status": "success",
+            "message": "Auto-upload process completed",
+            "processed_files": result['processed_files'],
+            "unprocessed_files": result['unprocessed_files']
+        })
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
 
 
 @csrf_exempt
@@ -662,28 +665,20 @@ def search(request):
     return render(request, 'chatbot1/search.html')
 
 
-@login_required
-@require_http_methods(["GET"])
-def current_user(request):
-    return JsonResponse({
-        'user': {
-            'username': request.user.username,
-            'email': request.user.email,
-            'first_name': request.user.first_name,
-            'last_name': request.user.last_name,
-        }
-    })
 
 
-class CustomAssertionConsumerServiceView(AssertionConsumerServiceView):
-    def post(self, request, *args, **kwargs):
-        logger.info(f"Received SAML response: {request.POST.get('SAMLResponse')}")
-        response = super().post(request, *args, **kwargs)
-        if self.request.user.is_authenticated:
-            return HttpResponseRedirect('http://localhost:3001')  # Redirect to your React frontend URL
-        else:
-            return HttpResponseRedirect('http://localhost:3001/login-failed')  # Handle failed authentication
 
+
+
+
+from django.http import JsonResponse, HttpResponseRedirect
+from django.contrib.auth import logout
+from django.conf import settings
+
+def custom_login(request):
+    user = User.objects.get_or_create(username='saml_user')[0]
+    login(request, user)
+    return HttpResponseRedirect(settings.LOGIN_REDIRECT_URL)
 
 def sp_metadata(request):
     conf = SPConfig()
@@ -691,6 +686,40 @@ def sp_metadata(request):
     metadata = create_metadata_string(None, conf)
     return HttpResponse(metadata, content_type='text/xml')
 
-
 def index(request):
     return HttpResponse("Welcome to the SAML2 test")
+
+@login_required
+def session_status(request):
+    if request.user.is_authenticated:
+        user_info = {
+            'username': request.user.username,
+            'email': request.user.email,
+            'is_authenticated': True,
+        }
+        return JsonResponse(user_info)
+    else:
+        return JsonResponse({'is_authenticated': False}, status=401)
+
+@csrf_exempt
+def custom_logout(request):
+    """
+    Custom logout view.
+    """
+    try:
+        logout(request)
+        if request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            return JsonResponse({'message': 'Logged out successfully!'})
+        else:
+            return HttpResponseRedirect(settings.LOGOUT_REDIRECT_URL)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+
+
+
+
+
+
+
