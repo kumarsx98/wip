@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import CopyButton from './CopyButton';
 import axios from 'axios';
 
+//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+const baseURL = 'http://oad-ai.abbvienet.com:8001';
+
 function createMarkup(html) {
   return { __html: html };
 }
@@ -23,7 +26,7 @@ function Message({ message, isLoading, index, messages, source }) {
     const checkFiles = async () => {
       const status = {};
       for (const filename of message.filenames) {
-        const url = `http://oad-ai.abbvienet.com:8001/media/previews/${encodeURIComponent(filename)}`;
+        const url = `${baseURL}/media/previews/${encodeURIComponent(filename)}`;
         const exists = await checkFileExists(url);
         status[filename] = exists;
       }
@@ -46,7 +49,7 @@ function Message({ message, isLoading, index, messages, source }) {
             <p className="filenames">
               Found in: {message.filenames.map((filename, i) => (
                 fileStatus[filename] ?
-                <a key={i} href={`http://oad-ai.abbvienet.com:8001/media/previews/${encodeURIComponent(filename)}`} target="_blank" rel="noopener noreferrer">{filename}</a> :
+                <a key={i} href={`${baseURL}/media/previews/${encodeURIComponent(filename)}`} target="_blank" rel="noopener noreferrer">{filename}</a> :
                 <span key={i}>{filename} (File preview is not available)</span>
               ))}
             </p>

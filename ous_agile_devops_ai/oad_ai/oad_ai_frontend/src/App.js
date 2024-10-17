@@ -1,22 +1,23 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './Home';
+import Login from './Login';
 import ChatWithSource from './ChatWithSource';
 import CreateSource from './CreateSource';
 import ListSources from './ListSources';
-import Documents from './Documents'; // Import the new Documents component
-import Login from './Login';
+import Documents from './Documents';
 import Navigation from './Navigation';
 import AutoUploadManager from './AutoUploadManager';
+import Chatbot from './Chatbot'; // Import Chatbot component
 import { AuthProvider } from './AuthContext';
-import ProtectedRoute from './ProtectedRoute';
 import FilePreview from './FilePreview';
-import WebSocketComponent from './WebSocketComponent'; // Importing the WebSocket component
-
+import WebSocketComponent from './WebSocketComponent';
+import ProtectedRoute from './ProtectedRoute';
 import axios from 'axios';
+
 axios.defaults.withCredentials = true;
 
-function App() {
+const App = () => {
   return (
     <AuthProvider>
       <Router>
@@ -24,32 +25,21 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/sources" element={<ListSources />} />
-          <Route path="/sources/:sourceName/documents" element={<Documents />} />
           <Route path="/auto-upload" element={<AutoUploadManager />} />
-          <Route
-            path="/create-source"
-            element={
-              <ProtectedRoute>
-                <CreateSource />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/sources/:source/upload"
-            element={
-              <ProtectedRoute>
-                {/* <UploadDocument /> */}
-              </ProtectedRoute>
-            }
-          />
           <Route path="/chat-with-source/:sourceName" element={<ChatWithSource />} />
           <Route path="/media/previews/*" element={<FilePreview />} />
-          <Route path="/websocket-test" element={<WebSocketComponent />} /> {/* Add WebSocket Component route */}
+          <Route path="/websocket-test" element={<WebSocketComponent />} />
+          <Route path="/chatbot/:mysource" element={<Chatbot />} /> {/* Updated route for Chatbot with mysource param */}
+
+          {/* Protected Routes */}
+          <Route path="/sources" element={<ProtectedRoute component={ListSources} />} />
+          <Route path="/sources/:sourceName/documents" element={<ProtectedRoute component={Documents} />} />
+          <Route path="/create-source" element={<ProtectedRoute component={CreateSource} />} />
+          <Route path="/sources/:source/upload" element={<ProtectedRoute component={<div />} />} /> {/* Placeholder */}
         </Routes>
       </Router>
     </AuthProvider>
   );
-}
+};
 
 export default App;

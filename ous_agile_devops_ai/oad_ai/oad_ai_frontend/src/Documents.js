@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base URL here
+//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
 function Documents() {
   const [documents, setDocuments] = useState([]);

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+//const baseURL = 'http://oad-ai.abbvienet.com:8001';
+
 function CreateSource() {
   const [sourceName, setSourceName] = useState('');
   const [description, setDescription] = useState('');
@@ -13,7 +16,7 @@ function CreateSource() {
     setMessage('');
 
     try {
-      const response = await axios.post('/chatbot1/create-source/',
+      const response = await axios.post(`${baseURL}/chatbot1/create-source/`,
         {
           source: sourceName,
           description: description

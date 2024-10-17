@@ -2,22 +2,22 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
-function Navigation({ sources = [] }) {
+function Navigation() {
   const { user, logout } = useAuth();
 
   return (
     <nav>
       <ul>
         <li><Link to="/">Home</Link></li>
+        <li><Link to="/sources">View All Sources</Link></li>
+        <li><Link to="/create-source">Create a New Source</Link></li>
+        <li><Link to="/chatbot/public">Public Chatbot</Link></li>
+        <li><Link to="/chatbot/internal">Internal Chatbot</Link></li>
+        <li><Link to="/auto-upload">Manage Auto-Uploads</Link></li> {/* Add Auto-Uploads */}
         {user ? (
           <>
-            <li>{user.username}</li>
+            <li style={{ color: 'yellow' }} role="img" aria-label="Star">🌟 Your login was successful! 🌟</li> {/* Make text yellow */}
             <li><button onClick={logout}>Logout</button></li>
-            {sources.map((source, index) => (
-              <li key={index}>
-                <a href={`/chat-with-source/${source}`} target="_blank" rel="noopener noreferrer">Chat with {source}</a>
-              </li>
-            ))}
           </>
         ) : (
           <li><Link to="/login">Login</Link></li>

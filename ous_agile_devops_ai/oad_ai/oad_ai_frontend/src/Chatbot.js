@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import api from './api';  // Import the custom Axios instance
+import axios from 'axios';
 import Header from './Header';
 import ConversationBox from './ConversationBox';
 import InputBox from './InputBox';
 import './App.css';
 
+//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+const baseURL = 'http://oad-ai.abbvienet.com:8001';
 function Chatbot() {
   const { mysource } = useParams();
   const [messages, setMessages] = useState([]);
@@ -31,8 +33,17 @@ function Chatbot() {
       setQuestion('');
 
       try {
+        const payload = {
+          question: message,
+          mysource: mysource, // Ensure correct source is passed
+        };
 
-        const resp = await api.post('/chatbot1/search/', { question: message, mysource });
+        const resp = await axios.post(`${baseURL}/chatbot1/search/`, payload, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          withCredentials: true,
+        });
         console.log('Received response from API:', resp.data);
 
         let response = resp.data.response.content;
