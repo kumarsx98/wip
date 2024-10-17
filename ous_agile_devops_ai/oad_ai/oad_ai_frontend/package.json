@@ -2,7 +2,7 @@
   "name": "oad_ai_frontend",
   "version": "0.1.0",
   "private": true,
-  "homepage": "http://oad-ai.abbvienet.com:8001",
+  "homepage": "http://localhost:8001",
 
 
   "dependencies": {
