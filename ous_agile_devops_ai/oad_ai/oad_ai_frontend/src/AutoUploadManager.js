@@ -3,8 +3,8 @@ import axios from 'axios';
 import debounce from 'lodash/debounce';
 import { v4 as uuidv4 } from 'uuid'; // Import the UUID library
 
-const baseURL = 'http://localhost:8001'; // Define your backend base URL here
-//const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
+//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
