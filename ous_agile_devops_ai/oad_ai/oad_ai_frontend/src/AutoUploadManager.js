@@ -3,8 +3,8 @@ import axios from 'axios';
 import debounce from 'lodash/debounce';
 import { v4 as uuidv4 } from 'uuid'; // Import the UUID library
 
-//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
-const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
+const baseURL = 'http://localhost:8001'; // Define your backend base URL here
+//const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -55,14 +55,15 @@ const AutoUploadManager = () => {
     }
   };
 
-  const retryWithBackoff = async (fn, retries = 5, delay = 2000) => {
+  const retryWithBackoff = async (fn, retries = 5, delay = 2000, maxDelay = 16000) => {
     try {
       return await fn();
     } catch (error) {
       if (retries > 0) {
-        console.warn(`Retrying in ${delay / 1000} seconds... ${retries} attempts left. Reason: ${error.message}`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return retryWithBackoff(fn, retries - 1, delay * 2);  // Double the delay for each retry
+        const jitter = Math.random() * 1000; // Adding jitter to the delay
+        console.warn(`Retrying in ${(delay + jitter) / 1000} seconds... ${retries} attempts left. Reason: ${error.message}`);
+        await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+        return retryWithBackoff(fn, retries - 1, Math.min(delay * 2, maxDelay));  // Double the delay with a max limit
       } else {
         throw error;
       }
@@ -139,6 +140,13 @@ const AutoUploadManager = () => {
         }
       }
     } catch (error) {
+       // Additional error handling for network errors
+      setNetworkErrorCount((prevCount) => prevCount + 1);
+
+      if (networkErrorCount >= 5) {
+        setMessage(`Frequent network errors detected. Please check your network connection.`);
+      }
+
       console.error('Error fetching upload status:', error.message);
       setMessage(`Error fetching upload status: ${error.message}`);
     }
