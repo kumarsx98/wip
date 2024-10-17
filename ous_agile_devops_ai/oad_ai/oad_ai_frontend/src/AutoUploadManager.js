@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid'; // Import the UUID library
 
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
-const baseURL = 'http://oad-ai.abbvienet.com:8001';
+const baseURL = 'http://oad-ai.abbvienet.com:8001'; // Define your backend base url
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [uploadDetails, setUploadDetails] = useState([]);
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
+  const [networkErrorCount, setNetworkErrorCount] = useState(0);
 
   // Helper to parse and format timestamp
   const parseTimestamp = (timestamp) => {
@@ -54,23 +55,16 @@ const AutoUploadManager = () => {
     }
   };
 
-  const retryWithBackoff = async (fn, retries = 5, delay = 2000, maxDelay = 32000) => {
+  const retryWithBackoff = async (fn, retries = 5, delay = 2000, maxDelay = 16000) => {
     try {
       return await fn();
     } catch (error) {
-      // Check for specific network errors and trigger a page refresh
-      if (error.message === 'Network Error' || error.message.includes('ERR_CONNECTION_REFUSED')) {
-        console.warn(`Network error detected: ${error.message}. Refreshing the page.`);
-        window.location.reload();
-      }
-
       if (retries > 0) {
         const jitter = Math.random() * 1000; // Adding jitter to the delay
         console.warn(`Retrying in ${(delay + jitter) / 1000} seconds... ${retries} attempts left. Reason: ${error.message}`);
         await new Promise((resolve) => setTimeout(resolve, delay + jitter));
         return retryWithBackoff(fn, retries - 1, Math.min(delay * 2, maxDelay));  // Double the delay with a max limit
       } else {
-        console.error('Maximum retry attempts exceeded:', error.message);
         throw error;
       }
     }
@@ -78,11 +72,12 @@ const AutoUploadManager = () => {
 
   const handleUploadFile = async (fileDetail) => {
     try {
-      return await retryWithBackoff(async () => {
+      await retryWithBackoff(async () => {
         console.log(`Uploading file: ${fileDetail.file_name}`);
-        await axiosInstance.post('/chatbot1/auto-upload/', { file: fileDetail.file_name });
-        setUploadDetails((prevDetails) =>
-          prevDetails.map((detail) =>
+        await axiosInstance.post('/chatbot1/auto-upload/', { file: fileDetail.file_name });  // Use your existing endpoint
+        // Update status immediately on successful upload
+        setUploadDetails(prevDetails =>
+          prevDetails.map(detail =>
             detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'COMPLETED' } : detail
           )
         );
@@ -90,13 +85,14 @@ const AutoUploadManager = () => {
     } catch (error) {
       console.error(`Failed to upload ${fileDetail.file_name}:`, error.message);
       if (!error.message.includes('Network Error')) {
-        setUploadDetails((prevDetails) =>
-          prevDetails.map((detail) =>
+        // Update status to 'FAILED' if not network error
+        setUploadDetails(prevDetails =>
+          prevDetails.map(detail =>
             detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'FAILED' } : detail
           )
         );
       }
-      throw error;
+      throw error;  // Re-throw to trigger retry mechanism
     }
   };
 
@@ -118,32 +114,39 @@ const AutoUploadManager = () => {
           timestamp: detail.timestamp,
           preview_url: previewUrl ? `${baseURL}/media/previews/${encodedFileName}` : 'Not available',
         };
-        updatedDetailsMap.set(detail.file_name, updatedDetail); // Use file_name to ensure uniqueness
+        updatedDetailsMap.set(uniqueId, updatedDetail); // Use uniqueId to ensure uniqueness
       });
 
       const updatedDetails = Array.from(updatedDetailsMap.values());
       setUploadDetails(updatedDetails);
       setSchedulerStatus(response.data.scheduler_status);
 
+      // Set to maintain uploaded files
+      const uploadedFiles = new Set(updatedDetails.filter(detail => detail.status === 'COMPLETED').map(detail => detail.file_name));
+
       // Process pending uploads immediately after fetching status
       for (const fileDetail of updatedDetails) {
-        if (fileDetail.status === 'PENDING') {
+        if (fileDetail.status === 'PENDING' && !uploadedFiles.has(fileDetail.file_name)) {
           try {
             await handleUploadFile(fileDetail);
+            uploadedFiles.add(fileDetail.file_name);  // Add file name to the set after successful upload
           } catch (error) {
-            console.error(`Failed to upload ${fileDetail.file_name}:`, error.message);
-            if (!error.message.includes('Network Error')) {
-              setUploadDetails((prevDetails) =>
-                prevDetails.map((detail) =>
-                  detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'FAILED' } : detail
-                )
-              );
+            if (error.message.includes('already uploaded')) {
+              console.log(`File ${fileDetail.file_name} has already been uploaded. Skipping...`);
+            } else {
+              throw error;
             }
-            throw error;
           }
         }
       }
     } catch (error) {
+       // Additional error handling for network errors
+      setNetworkErrorCount((prevCount) => prevCount + 1);
+
+      if (networkErrorCount >= 5) {
+        setMessage(`Frequent network errors detected. Please check your network connection.`);
+      }
+
       console.error('Error fetching upload status:', error.message);
       setMessage(`Error fetching upload status: ${error.message}`);
     }
@@ -169,6 +172,7 @@ const AutoUploadManager = () => {
   const handleAutoUpload = async () => {
     setIsLoading(true);
     setMessage('');
+    setNetworkErrorCount(0);
 
     try {
       setMessage('Initiating auto-upload process');
