@@ -13,14 +13,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Define the base URL
 #BASE_URL = config('BASE_URL', default='http://localhost:8001')
+# Uncomment and use the below line for production
 BASE_URL = config('BASE_URL', default='http://oad-ai.abbvienet.com:8001')
-
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 PREVIEW_BASE_URL = MEDIA_URL
 
-ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG', default=False)
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.72.19.8', 'oad-ai.abbvienet.com']
@@ -48,6 +47,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'logging_middleware.LoggingMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -63,7 +63,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'oad_ai.urls'
 TEMPLATES = [{
     'BACKEND': 'django.template.backends.django.DjangoTemplates',
-    'DIRS': [],  # You can specify your template directories here if needed
+    'DIRS': [],  # Specify your template directories here if needed
     'APP_DIRS': True,
     'OPTIONS': {
         'context_processors': [
@@ -76,7 +76,7 @@ TEMPLATES = [{
 }]
 WSGI_APPLICATION = 'oad_ai.wsgi.application'
 
-DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3',}}
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': BASE_DIR / 'db.sqlite3'}}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
@@ -124,23 +124,18 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': False,
-
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,
-
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
-
     'JTI_CLAIM': 'jti',
-
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
@@ -207,18 +202,15 @@ SAML_ATTRIBUTE_MAPPING = {
 }
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False  # Set to True if using HTTPS in production
+CSRF_COOKIE_SECURE = False    # Set to True if using HTTPS in production
 
 SAML_METADATA_PATH = os.path.join(BASE_DIR, r'SAML_METADATA_PATH')
 
 # Update these URLs to point to the new React component route
-# Ensure the redirection URLs are correct
 LOGIN_URL = f'{BASE_URL.replace("8001", "3001")}/login'
-LOGIN_REDIRECT_URL = BASE_URL.replace("8001", "3001")  # Redirect to the main page after successful login
+LOGIN_REDIRECT_URL = BASE_URL.replace("8001", "3001")
 LOGOUT_REDIRECT_URL = BASE_URL
-# Alternatively, if the home page is on the same URL as the BASE_URL
-# LOGOUT_REDIRECT_URL = '/'
 
 LOGGING = {
     'version': 1,
@@ -238,6 +230,10 @@ LOGGING = {
             'level': 'DEBUG',
         },
         'djangosaml2': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+        },
+        'logging_middleware': {
             'handlers': ['console', 'file'],
             'level': 'DEBUG',
         },
