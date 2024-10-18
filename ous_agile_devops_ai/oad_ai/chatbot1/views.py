@@ -13,26 +13,30 @@ import threading
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 import requests
-from django.http import HttpResponseRedirect
-from django.conf import settings
-from django.contrib.auth import login
-from django.contrib.auth.models import User
+
+
 import concurrent.futures
 import datetime
 import traceback
-from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
-from djangosaml2.views import AssertionConsumerServiceView
-from django.core.files.storage import default_storage
-from django.conf import settings
-from django.shortcuts import render, redirect
-from django.views.decorators.csrf import csrf_exempt
+
 from cryptography.fernet import Fernet
 from django.views.decorators.http import require_GET, require_http_methods
-from saml2.config import SPConfig
-from saml2.metadata import create_metadata_string
+
 from .models import Source  # Make sure to import your Source model
 import urllib.parse
 from .document_uploader import upload_document_to_iliad, check_upload_status
+import logging
+from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse, HttpResponseRedirect
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from djangosaml2 import views as saml_views
+from djangosaml2.conf import get_config
+from django.contrib.auth.models import User
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -671,49 +675,75 @@ def search(request):
 
 
 
-from django.http import JsonResponse, HttpResponseRedirect
-from django.contrib.auth import logout
-from django.conf import settings
+
+
+
 
 def custom_login(request):
-    user = User.objects.get_or_create(username='saml_user')[0]
-    login(request, user)
-    return HttpResponseRedirect(settings.LOGIN_REDIRECT_URL)
+    logger.debug("Entering custom_login view")
+    try:
+        user, created = User.objects.get_or_create(username='saml_user')
+        if created:
+            logger.debug("Created new user: saml_user")
+        else:
+            logger.debug("Found existing user: saml_user")
+
+        login(request, user)
+        logger.debug("Successfully logged in user: saml_user")
+        return HttpResponseRedirect(settings.LOGIN_REDIRECT_URL)
+    except Exception as e:
+        logger.error(f"Error in custom_login: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 def sp_metadata(request):
-    conf = SPConfig()
-    conf.load(settings.SAML_CONFIG)
-    metadata = create_metadata_string(None, conf)
-    return HttpResponse(metadata, content_type='text/xml')
+    logger.debug("Entering sp_metadata view")
+    try:
+        conf = get_config(config_loader_path=settings.SAML_CONFIG)
+        metadata = conf.metadata.to_string()
+        logger.debug("Successfully generated SP metadata")
+        return HttpResponse(metadata, content_type='text/xml')
+    except Exception as e:
+        logger.error(f"Error in sp_metadata: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 def index(request):
+    logger.debug("Entering index view")
     return HttpResponse("Welcome to the SAML2 test")
 
 @login_required
 def session_status(request):
-    if request.user.is_authenticated:
-        user_info = {
-            'username': request.user.username,
-            'email': request.user.email,
-            'is_authenticated': True,
-        }
-        return JsonResponse(user_info)
-    else:
-        return JsonResponse({'is_authenticated': False}, status=401)
+    logger.debug("Entering session_status view")
+    try:
+        if request.user.is_authenticated:
+            user_info = {
+                'username': request.user.username,
+                'email': request.user.email,
+                'is_authenticated': True,
+            }
+            logger.debug(f"Authenticated user info: {user_info}")
+            return JsonResponse(user_info)
+        else:
+            logger.debug("User not authenticated")
+            return JsonResponse({'is_authenticated': False}, status=401)
+    except Exception as e:
+        logger.error(f"Error in session_status: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
 
 @csrf_exempt
 def custom_logout(request):
-    """
-    Custom logout view.
-    """
+    logger.debug("Entering custom_logout view")
     try:
         logout(request)
+        logger.debug("Successfully logged out user")
         if request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             return JsonResponse({'message': 'Logged out successfully!'})
         else:
             return HttpResponseRedirect(settings.LOGOUT_REDIRECT_URL)
     except Exception as e:
+        logger.error(f"Error in custom_logout: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
 
 
 
