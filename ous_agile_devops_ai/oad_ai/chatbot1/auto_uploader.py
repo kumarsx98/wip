@@ -4,12 +4,14 @@ import shutil
 import logging
 import urllib.parse
 
-import schedule
+import schedule  # import the schedule library
 from django.conf import settings
 from cryptography.fernet import Fernet
 import requests
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from datetime import datetime, timedelta
+from threading import Semaphore
 
 from .models import UploadRecord
 
@@ -18,6 +20,10 @@ logger = logging.getLogger(__name__)
 ILIAD_URL = settings.ILIAD_URL
 PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL  # URL base for preview
 
+upload_semaphore = Semaphore(10)  # Allow up to 10 concurrent uploads
+status_semaphore = Semaphore(10)  # Allow up to 10 concurrent status checks
+
+last_request_time = datetime.now()
 
 def get_headers():
     try:
@@ -36,6 +42,16 @@ def get_headers():
     except Exception as e:
         logger.error(f"Error creating headers: {str(e)}")
         return None
+
+
+# Function to ensure delay between requests
+def ensure_delay():
+    global last_request_time
+    now = datetime.now()
+    elapsed = (now - last_request_time).total_seconds()
+    wait_time = max(0, 1 - elapsed)  # Ensuring at least 1 second delay
+    time.sleep(wait_time)
+    last_request_time = datetime.now()
 
 
 def get_sources_from_iliad():
@@ -65,9 +81,10 @@ def get_sources_from_iliad():
         logger.error(f"Error fetching sources from Iliad API: {e}")
         return []
 
-
 def get_documents_from_iliad(source):
     try:
+        ensure_delay()
+
         headers = get_headers()
         if not headers:
             return []
@@ -88,6 +105,8 @@ def get_documents_from_iliad(source):
 
 def delete_existing_document(source, filename):
     try:
+        ensure_delay()
+
         headers = get_headers()
         if not headers:
             return False
@@ -137,41 +156,44 @@ def save_file_for_preview(file_path, source):
 
 def upload_document_to_iliad(source, file_path):
     try:
-        headers = get_headers()
-        if not headers:
-            return None
+        with upload_semaphore:
+            ensure_delay()
 
-        filename = os.path.basename(file_path)
-        logger.info(f"API Called'{filename}'")
+            headers = get_headers()
+            if not headers:
+                return None
 
-        if not delete_existing_document(source, filename):
-            logger.error(f"Failed to delete existing document '{filename}' from source '{source}'.")
-            return None
+            filename = os.path.basename(file_path)
+            logger.info(f"API Called'{filename}'")
 
-        # Save file for preview with the correct source prefix
-        preview_url = save_file_for_preview(file_path, source.lower())
+            if not delete_existing_document(source, filename):
+                logger.error(f"Failed to delete existing document '{filename}' from source '{source}'.")
+                return None
 
-        with open(file_path, 'rb') as file:
-            url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
-            files = {"file": (filename, file, 'application/octet-stream')}
+            # Save file for preview with the correct source prefix
+            preview_url = save_file_for_preview(file_path, source.lower())
 
-            logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
-            response = requests.post(url, headers=headers, files=files)
+            with open(file_path, 'rb') as file:
+                url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
+                files = {"file": (filename, file, 'application/octet-stream')}
 
-        logger.info(f"Iliad API response for {file_path}: Status {response.status_code}, Content: {response.text}")
+                logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
+                response = requests.post(url, headers=headers, files=files)
 
-        if response.status_code in [200, 201, 202]:
-            response_json = response.json()
-            task_id = response_json.get('task_id')
-            return {
-                "status": "PENDING" if task_id else "COMPLETED",
-                "task_id": task_id,
-                "preview_url": preview_url,
-                "message": "Upload successful"
-            }
-        else:
-            logger.error(f"Error uploading document to Iliad API. Status code: {response.status_code}")
-            return None
+            logger.info(f"Iliad API response for {file_path}: Status {response.status_code}, Content: {response.text}")
+
+            if response.status_code in [200, 201, 202]:
+                response_json = response.json()
+                task_id = response_json.get('task_id')
+                return {
+                    "status": "PENDING" if task_id else "COMPLETED",
+                    "task_id": task_id,
+                    "preview_url": preview_url,
+                    "message": "Upload successful"
+                }
+            else:
+                logger.error(f"Error uploading document to Iliad API. Status code: {response.status_code}")
+                return None
 
     except requests.RequestException as e:
         logger.error(f"Error uploading document to Iliad API: {str(e)}")
@@ -180,34 +202,37 @@ def upload_document_to_iliad(source, file_path):
 
 def check_upload_status(source, task_id):
     try:
-        headers = get_headers()
-        if not headers:
-            return None
+        with status_semaphore:
+            ensure_delay()
 
-        url = f"{ILIAD_URL}/api/v1/sources/{source}/{task_id}"
-        logger.info(f"Checking status for task {task_id} in source {source}")
+            headers = get_headers()
+            if not headers:
+                return None
 
-        response = requests.get(url, headers=headers)
-        logger.info(f"Status check response: {response.status_code} - {response.text}")
+            url = f"{ILIAD_URL}/api/v1/sources/{source}/{task_id}"
+            logger.info(f"Checking status for task {task_id} in source {source}")
 
-        if response.status_code == 200:
-            status_data = response.json()
-            current_status = status_data.get('status', '').upper()
+            response = requests.get(url, headers=headers)
+            logger.info(f"Status check response: {response.status_code} - {response.text}")
 
-            if current_status in ['COMPLETED', 'SUCCESS']:
+            if response.status_code == 200:
+                status_data = response.json()
+                current_status = status_data.get('status', '').upper()
+
+                if current_status in ['COMPLETED', 'SUCCESS']:
+                    UploadRecord.objects.filter(task_id=task_id).update(status='COMPLETED')
+                    return {'status': 'COMPLETED'}
+                elif current_status == 'FAILED':
+                    UploadRecord.objects.filter(task_id=task_id).update(status='FAILED')
+                    return {'status': 'FAILED'}
+                else:
+                    return {'status': 'PENDING'}
+            elif response.status_code == 404:
                 UploadRecord.objects.filter(task_id=task_id).update(status='COMPLETED')
-                return {'status': 'COMPLETED'}
-            elif current_status == 'FAILED':
-                UploadRecord.objects.filter(task_id=task_id).update(status='FAILED')
-                return {'status': 'FAILED'}
+                return {"status": "COMPLETED"}
             else:
-                return {'status': 'PENDING'}
-        elif response.status_code == 404:
-            UploadRecord.objects.filter(task_id=task_id).update(status='COMPLETED')
-            return {"status": "COMPLETED"}
-        else:
-            logger.error(f"Error checking upload status. Status code: {response.status_code}")
-            return None
+                logger.error(f"Error checking upload status. Status code: {response.status_code}")
+                return None
     except requests.RequestException as e:
         logger.error(f"Error checking upload status: {str(e)}")
         return None
@@ -215,13 +240,15 @@ def check_upload_status(source, task_id):
 
 def get_upload_records():
     try:
+        ensure_delay()
+
         records = UploadRecord.objects.all().order_by('-timestamp')[:50]
         updated_records = []
 
         for record in records:
             if record.status == 'PENDING' and record.task_id:
                 status_result = check_upload_status(record.source, record.task_id)
-                if status_result and status_result['status'] != 'PENDING':
+                if status_result & status_result['status'] != 'PENDING':
                     record.status = status_result['status']
                     record.save()
 
@@ -373,3 +400,7 @@ def process_documents():
             "processed_files": processed_files,
             "unprocessed_files": unprocessed_files
         }
+
+@api_view(['POST'])
+def trigger_auto_upload(request):
+    return Response(process_documents())

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-//const baseURL = 'http://localhost:8001';
-const baseURL = 'http://oad-ai.abbvienet.com:8001';// Change this to your backend URL
-
+//const baseURL = 'http://localhost:8001'; // Change this to your backend URL
+const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
 const getCookie = (name) => {
   let cookieValue = null;
@@ -26,6 +25,9 @@ const AutoUploadManager = () => {
   const [uploadDetails, setUploadDetails] = useState([]);
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
 
+  const autoUploadIntervalRef = useRef(null);
+  const statusCheckIntervalRef = useRef(null);
+
   const axiosInstance = axios.create({
     baseURL: baseURL,
     timeout: 300000, // 5 minutes timeout
@@ -35,7 +37,7 @@ const AutoUploadManager = () => {
     }
   });
 
-  // Fetch upload status with automatic refresh for pending items
+  // Fetch upload status
   const fetchUploadStatus = async () => {
     try {
       const response = await axiosInstance.get('/chatbot1/get-upload-status/');
@@ -47,7 +49,7 @@ const AutoUploadManager = () => {
         );
 
         if (hasPendingUploads) {
-          setTimeout(fetchUploadStatus, 5000); // Check every 5 seconds
+          setTimeout(fetchUploadStatus, 3000); // Check every 3 seconds for pending uploads
         }
       }
       return response.data;
@@ -62,10 +64,8 @@ const AutoUploadManager = () => {
   const handleAutoUpload = async () => {
     setIsLoading(true);
     setMessage('Starting auto-upload process...');
-
     try {
       const response = await axiosInstance.post('/chatbot1/trigger-auto-upload/');
-
       if (response.data.status === 'success') {
         setMessage(`Auto-upload completed successfully. Processed ${response.data.processed_files || 0} files.`);
         await fetchUploadStatus();
@@ -80,15 +80,33 @@ const AutoUploadManager = () => {
     }
   };
 
-  // Start scheduler
-  const startScheduler = async () => {
-    try {
-      const response = await axiosInstance.post('/chatbot1/start-scheduler/');
-      setSchedulerStatus(response.data.status === 'success' ? 'Running' : 'Not running');
-      setMessage(response.data.message || 'Scheduler started successfully.');
-    } catch (error) {
-      console.error('Error starting scheduler:', error);
-      setMessage(`Error starting scheduler: ${error.message}`);
+  useEffect(() => {
+    fetchUploadStatus();
+  }, []);
+
+  useEffect(() => {
+    if (schedulerStatus === 'Running') {
+      autoUploadIntervalRef.current = setInterval(handleAutoUpload, 600000); // Auto upload every 10 minutes
+      statusCheckIntervalRef.current = setInterval(fetchUploadStatus, 180000); // Check status every 3 minutes
+    } else {
+      clearInterval(autoUploadIntervalRef.current);
+      clearInterval(statusCheckIntervalRef.current);
+    }
+
+    // Cleanup on unmount or status change
+    return () => {
+      clearInterval(autoUploadIntervalRef.current);
+      clearInterval(statusCheckIntervalRef.current);
+    };
+  }, [schedulerStatus]);
+
+  const toggleScheduler = () => {
+    if (schedulerStatus === 'Running') {
+      setSchedulerStatus('Not running');
+      setMessage('Scheduler stopped.');
+    } else {
+      setSchedulerStatus('Running');
+      setMessage('Scheduler started.');
     }
   };
 
@@ -97,33 +115,24 @@ const AutoUploadManager = () => {
     return timestamp ? new Date(timestamp).toLocaleString() : 'N/A';
   };
 
-  useEffect(() => {
-    fetchUploadStatus();
-
-    const interval = setInterval(fetchUploadStatus, 30000); // Regular 30-second updates
-
-    return () => clearInterval(interval);
-  }, []);
-
   return (
     <div style={{ border: '1px solid black', padding: '20px', margin: '20px', color: 'white', backgroundColor: '#333' }}>
       <h2>Auto Upload Manager</h2>
 
       <div style={{ marginBottom: '20px' }}>
         <button
-          onClick={startScheduler}
-          disabled={schedulerStatus === 'Running'}
+          onClick={toggleScheduler}
           style={{
             marginRight: '10px',
             padding: '10px',
-            backgroundColor: '#4CAF50',
+            backgroundColor: schedulerStatus === 'Running' ? '#FF5733' : '#4CAF50',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: schedulerStatus === 'Running' ? 'not-allowed' : 'pointer',
+            cursor: 'pointer',
           }}
         >
-          {schedulerStatus === 'Running' ? 'Scheduler Running' : 'Start Scheduler'}
+          {schedulerStatus === 'Running' ? 'Stop Scheduler' : 'Start Scheduler'}
         </button>
 
         <button
@@ -160,7 +169,7 @@ const AutoUploadManager = () => {
             <th style={{ border: '1px solid white', padding: '8px' }}>Source</th>
             <th style={{ border: '1px solid white', padding: '8px' }}>Task ID</th>
             <th style={{ border: '1px solid white', padding: '8px' }}>Timestamp</th>
-            <th style={{ border: '1px solid white', padding: '8px' }}>Preview</th> {/* Added column for Preview */}
+            <th style={{ border: '1px solid white', padding: '8px' }}>Preview</th>
           </tr>
         </thead>
         <tbody>
