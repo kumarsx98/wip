@@ -1,3 +1,13 @@
+# Ignore Python virtual environment
+.venv/
+
+# Ignore site-packages within the virtual environment
+.venv/Lib/site-packages/
+
+# Ignore media files
+ous_agile_devops_ai/oad_ai/media/manual_check/*
+ous_agile_devops_ai/oad_ai/media/previews/*
+
 # Python bytecode files and cache
 ous_agile_devops_ai/oad_ai/chatbot1/__pycache__/
 ous_agile_devops_ai/oad_ai/chatbot1/migrations/__pycache__/
@@ -9,15 +19,11 @@ ous_agile_devops_ai/oad_ai/oad_ai_frontend/build/
 # Ignore cache directories and files
 ous_agile_devops_ai/oad_ai/oad_ai_frontend/node_modules/.cache/
 
-#Media Files
-ous_agile_devops_ai\oad_ai\media
-
 # Log files
 ous_agile_devops_ai/oad_ai/debug.log
 ous_agile_devops_ai/oad_ai/django.log
 
-ous_agile_devops_ai\oad_ai\media\previews
+# Database File
+ous_agile_devops_ai/oad_ai/db.sqlite3
 
-ous_agile_devops_ai\oad_ai\db.sqlite3
 
-ous_agile_devops_ai\oad_ai\oad_ai\settings.py
