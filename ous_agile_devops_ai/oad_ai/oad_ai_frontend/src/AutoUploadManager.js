@@ -1,10 +1,24 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import debounce from 'lodash/debounce';
-import { v4 as uuidv4 } from 'uuid';
 
-//const baseURL = 'http://localhost:8001'; // Define your backend base URL here
-const baseURL = 'http://oad-ai.abbvienet.com:8001';
+//const baseURL = 'http://localhost:8001';
+const baseURL = 'http://oad-ai.abbvienet.com:8001';// Change this to your backend URL
+
+
+const getCookie = (name) => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === `${name}=`) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
 
 const AutoUploadManager = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,199 +26,89 @@ const AutoUploadManager = () => {
   const [uploadDetails, setUploadDetails] = useState([]);
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
 
-  // Helper to parse and format timestamp
-  const parseTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    if (isNaN(date.getTime())) {
-      return 'N/A';
-    }
-    return date.toLocaleString();
-  };
-
-  const getCookie = (name) => {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-      const cookies = document.cookie.split(';');
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === `${name}=`) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  };
-
   const axiosInstance = axios.create({
     baseURL: baseURL,
-    timeout: 120000,  // 2 minutes
-    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    timeout: 300000, // 5 minutes timeout
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/json',
+    }
   });
 
-  const fetchPreviews = async () => {
+  // Fetch upload status with automatic refresh for pending items
+  const fetchUploadStatus = async () => {
     try {
-      const response = await axiosInstance.get('/chatbot1/list-previews/');
-      console.log('Fetched previews:', response.data);
-      return response.data.previews || [];
-    } catch (error) {
-      console.error('Error fetching previews:', error.message);
-      setMessage(`Error fetching previews: ${error.message}`);
-      return [];
-    }
-  };
-
-  const retryWithBackoff = async (fn, retries = 5, delay = 2000, maxDelay = 32000) => {
-    try {
-      return await fn();
-    } catch (error) {
-      // Check for specific network errors and trigger a page refresh
-      if (error.message === 'Network Error' || error.message.includes('ERR_CONNECTION_REFUSED')) {
-        console.warn(`Network error detected: ${error.message}. Refreshing the page.`);
-        window.location.reload();
-      }
-
-      if (retries > 0) {
-        const jitter = Math.random() * 1000; // Adding jitter to the delay
-        console.warn(`Retrying in ${(delay + jitter) / 1000} seconds... ${retries} attempts left. Reason: ${error.message}`);
-        await new Promise((resolve) => setTimeout(resolve, delay + jitter));
-        return retryWithBackoff(fn, retries - 1, Math.min(delay * 2, maxDelay));  // Double the delay with a max limit
-      } else {
-        console.error('Maximum retry attempts exceeded:', error.message);
-        throw error;
-      }
-    }
-  };
-
-  const handleUploadFile = async (fileDetail) => {
-    try {
-      return await retryWithBackoff(async () => {
-        console.log(`Uploading file: ${fileDetail.file_name}`);
-        await axiosInstance.post('/chatbot1/auto-upload/', { file: fileDetail.file_name });
-        setUploadDetails((prevDetails) =>
-          prevDetails.map((detail) =>
-            detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'COMPLETED' } : detail
-          )
-        );
-      });
-    } catch (error) {
-      console.error(`Failed to upload ${fileDetail.file_name}:`, error.message);
-      if (!error.message.includes('Network Error')) {
-        setUploadDetails((prevDetails) =>
-          prevDetails.map((detail) =>
-            detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'FAILED' } : detail
-          )
-        );
-      }
-      throw error;
-    }
-  };
-
-  const fetchAndProcessUploads = async () => {
-    try {
-      const previews = await fetchPreviews();
       const response = await axiosInstance.get('/chatbot1/get-upload-status/');
-      console.log('Fetched upload status:', response.data);
+      if (response.data.upload_details) {
+        setUploadDetails(response.data.upload_details);
 
-      const updatedDetailsMap = new Map();
-      response.data.upload_details.forEach((detail, index) => {
-        const uniqueId = uuidv4(); // Use a UUID library to generate a unique ID
-        const encodedFileName = encodeURIComponent(detail.file_name);
-        const previewUrl = previews.find((preview) => preview.includes(detail.file_name)) || '';
-        const updatedDetail = {
-          uniqueId,
-          ...detail,
-          file_name: encodedFileName,
-          timestamp: detail.timestamp,
-          preview_url: previewUrl ? `${baseURL}/media/previews/${encodedFileName}` : 'Not available',
-        };
-        updatedDetailsMap.set(detail.file_name, updatedDetail); // Use file_name to ensure uniqueness
-      });
+        const hasPendingUploads = response.data.upload_details.some(
+          detail => detail.status === 'PENDING'
+        );
 
-      const updatedDetails = Array.from(updatedDetailsMap.values());
-      setUploadDetails(updatedDetails);
-      setSchedulerStatus(response.data.scheduler_status);
-
-      // Process pending uploads immediately after fetching status
-      for (const fileDetail of updatedDetails) {
-        if (fileDetail.status === 'PENDING') {
-          try {
-            await handleUploadFile(fileDetail);
-          } catch (error) {
-            console.error(`Failed to upload ${fileDetail.file_name}:`, error.message);
-            if (!error.message.includes('Network Error')) {
-              setUploadDetails((prevDetails) =>
-                prevDetails.map((detail) =>
-                  detail.uniqueId === fileDetail.uniqueId ? { ...detail, status: 'FAILED' } : detail
-                )
-              );
-            }
-            throw error;
-          }
+        if (hasPendingUploads) {
+          setTimeout(fetchUploadStatus, 5000); // Check every 5 seconds
         }
       }
+      return response.data;
     } catch (error) {
-      console.error('Error fetching upload status:', error.message);
-      setMessage(`Error fetching upload status: ${error.message}`);
+      console.error('Error fetching upload status:', error);
+      setMessage(`Error fetching status: ${error.message}`);
+      return null;
     }
   };
 
-  // Debounce the fetch and process uploads to avoid overlapping requests.
-  const debouncedFetchAndProcessUploads = useCallback(
-    debounce(fetchAndProcessUploads, 1000),
-    []
-  );
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      debouncedFetchAndProcessUploads();
-    }, 600000);  // 10 minutes in milliseconds
-
-    // Initial fetch and start scheduler
-    debouncedFetchAndProcessUploads();
-
-    return () => clearInterval(interval);  // Cleanup interval on unmount
-  }, []);
-
+  // Handle auto upload
   const handleAutoUpload = async () => {
     setIsLoading(true);
-    setMessage('');
+    setMessage('Starting auto-upload process...');
 
     try {
-      setMessage('Initiating auto-upload process');
-      console.log('Initiating auto-upload process');
+      const response = await axiosInstance.post('/chatbot1/trigger-auto-upload/');
 
-      debouncedFetchAndProcessUploads();
-
-      setMessage('Auto-upload process completed.');
+      if (response.data.status === 'success') {
+        setMessage(`Auto-upload completed successfully. Processed ${response.data.processed_files || 0} files.`);
+        await fetchUploadStatus();
+      } else {
+        setMessage(`Auto-upload completed with some issues: ${response.data.message}`);
+      }
     } catch (error) {
-      console.error('Error during auto-upload:', error.message);
+      console.error('Error during auto-upload:', error);
       setMessage(`Error during auto-upload: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Start scheduler
   const startScheduler = async () => {
     try {
       const response = await axiosInstance.post('/chatbot1/start-scheduler/');
-      console.log('Start scheduler response:', response.data);
-
       setSchedulerStatus(response.data.status === 'success' ? 'Running' : 'Not running');
       setMessage(response.data.message || 'Scheduler started successfully.');
     } catch (error) {
-      console.error('Error starting scheduler:', error.message);
+      console.error('Error starting scheduler:', error);
       setMessage(`Error starting scheduler: ${error.message}`);
     }
   };
 
+  // Format timestamp
   const formatTimestamp = (timestamp) => {
     return timestamp ? new Date(timestamp).toLocaleString() : 'N/A';
   };
 
+  useEffect(() => {
+    fetchUploadStatus();
+
+    const interval = setInterval(fetchUploadStatus, 30000); // Regular 30-second updates
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div style={{ border: '1px solid black', padding: '20px', margin: '20px', color: 'white', backgroundColor: '#333' }}>
       <h2>Auto Upload Manager</h2>
+
       <div style={{ marginBottom: '20px' }}>
         <button
           onClick={startScheduler}
@@ -216,11 +120,12 @@ const AutoUploadManager = () => {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: schedulerStatus === 'Running' ? 'not-allowed' : 'pointer',
           }}
         >
           {schedulerStatus === 'Running' ? 'Scheduler Running' : 'Start Scheduler'}
         </button>
+
         <button
           onClick={handleAutoUpload}
           disabled={isLoading}
@@ -230,50 +135,66 @@ const AutoUploadManager = () => {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
           }}
         >
-          {isLoading ? 'Uploading...' : 'Trigger Auto Upload'}
+          {isLoading ? 'Processing...' : 'Trigger Auto Upload'}
         </button>
       </div>
-      <p>
-        Scheduler Status: <strong>{schedulerStatus}</strong>
-      </p>
-      {message && <p style={{ color: '#FFA500' }}>Message: {message}</p>}
+
+      <div style={{ marginBottom: '20px' }}>
+        <p>Scheduler Status: <strong>{schedulerStatus}</strong></p>
+        {message && (
+          <p style={{ color: '#FFA500' }}>
+            Status: {message}
+          </p>
+        )}
+      </div>
 
       <h3>Recent Uploads:</h3>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
             <th style={{ border: '1px solid white', padding: '8px' }}>File Name</th>
-            <th style={{ border: '1px solid white', padding: '8px' }}>Source</th>
             <th style={{ border: '1px solid white', padding: '8px' }}>Status</th>
+            <th style={{ border: '1px solid white', padding: '8px' }}>Source</th>
             <th style={{ border: '1px solid white', padding: '8px' }}>Task ID</th>
             <th style={{ border: '1px solid white', padding: '8px' }}>Timestamp</th>
-            <th style={{ border: '1px solid white', padding: '8px' }}>Preview</th>
+            <th style={{ border: '1px solid white', padding: '8px' }}>Preview</th> {/* Added column for Preview */}
           </tr>
         </thead>
         <tbody>
-          {uploadDetails
-            .filter(detail => detail.status === 'COMPLETED' || detail.status === 'FAILED')
-            .map((detail, index) => (
-              <tr key={`${detail.uniqueId}-${index}`}>
-                <td style={{ border: '1px solid white', padding: '8px' }}>{decodeURIComponent(detail.file_name)}</td>
-                <td style={{ border: '1px solid white', padding: '8px' }}>{detail.source}</td>
-                <td style={{ border: '1px solid white', padding: '8px' }}>{detail.status}</td>
-                <td style={{ border: '1px solid white', padding: '8px' }}>{detail.task_id || 'N/A'}</td>
-                <td style={{ border: '1px solid white', padding: '8px' }}>{formatTimestamp(detail.timestamp)}</td>
-                <td style={{ border: '1px solid white', padding: '8px' }}>
-                  {detail.preview_url ? (
-                    <a href={detail.preview_url} target='_blank' rel='noopener noreferrer' style={{ color: '#00BFFF', textDecoration: 'underline' }}>
-                      View Preview
-                    </a>
-                  ) : (
-                    'Not available'
-                  )}
-                </td>
-              </tr>
-            ))}
+          {uploadDetails.map((detail, index) => (
+            <tr key={index}>
+              <td style={{ border: '1px solid white', padding: '8px' }}>
+                {decodeURIComponent(detail.file_name)}
+              </td>
+              <td style={{
+                border: '1px solid white',
+                padding: '8px',
+                color: detail.status === 'COMPLETED' ? '#4CAF50' :
+                       detail.status === 'FAILED' ? '#ff0000' : '#FFA500'
+              }}>
+                {detail.status}
+              </td>
+              <td style={{ border: '1px solid white', padding: '8px' }}>
+                {detail.source}
+              </td>
+              <td style={{ border: '1px solid white', padding: '8px' }}>
+                {detail.task_id || 'N/A'}
+              </td>
+              <td style={{ border: '1px solid white', padding: '8px' }}>
+                {formatTimestamp(detail.timestamp)}
+              </td>
+              <td style={{ border: '1px solid white', padding: '8px' }}>
+                {detail.preview_url ? (
+                  <a href={detail.preview_url} target="_blank" rel="noopener noreferrer" style={{ color: '#00BFFF', textDecoration: 'underline' }}>
+                    View Preview
+                  </a>
+                ) : 'Not available'}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

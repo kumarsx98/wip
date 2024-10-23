@@ -3,25 +3,15 @@
 # views.py
 
 import json
-import logging
-import os
-from .document_uploader import upload_document_to_iliad, check_upload_status as check_status
-from django.contrib.auth.decorators import login_required
-from .models import UploadRecord
-from .auto_uploader import process_documents, start_scheduler, get_source_from_filename
-import threading
+from .auto_uploader import process_documents, get_upload_records
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 import requests
-
-
 import concurrent.futures
 import datetime
 import traceback
-
 from cryptography.fernet import Fernet
-from django.views.decorators.http import require_GET, require_http_methods
-
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from .models import Source  # Make sure to import your Source model
 import urllib.parse
 from .document_uploader import upload_document_to_iliad, check_upload_status
@@ -48,115 +38,52 @@ PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL
 
 
 
+AUTO_UPLOAD_DIRECTORY = settings.AUTO_UPLOAD_DIR
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.http import JsonResponse
+import asyncio
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.views.decorators.csrf import csrf_exempt
+
 @csrf_exempt
-def auto_upload(request):
-    if request.method == 'POST':
+@api_view(['POST'])
+def trigger_auto_upload(request):
+    try:
         result = process_documents()
-        return JsonResponse({
+        return Response({
             "status": "success",
-            "message": "Auto-upload process completed",
-            "processed_files": result['processed_files'],
-            "unprocessed_files": result['unprocessed_files']
+            "data": result
         })
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
 
-
-@csrf_exempt
-def get_upload_status_view(request):
-    if request.method == 'GET':
-        try:
-            upload_records = list(UploadRecord.objects.all().values('file_name', 'source', 'status', 'task_id', 'timestamp').order_by('-timestamp'))
-            previews = get_previews()
-            upload_details = []
-
-            # Combine previews with upload records
-            existing_files = set()
-            for record in upload_records:
-                existing_files.add(record['file_name'])
-                upload_details.append(record)
-
-            for preview in previews:
-                if preview not in existing_files:
-                    preview_url = f"{PREVIEW_BASE_URL}/media/previews/{urllib.parse.quote(preview)}"
-                    upload_details.append({
-                        'file_name': preview,
-                        'source': 'N/A',
-                        'status': 'NOT UPLOADED',
-                        'preview_url': preview_url,
-                        'task_id': None,
-                        'timestamp': None,
-                    })
-
-            return JsonResponse({'status': 'success', 'upload_details': upload_details, 'scheduler_status': 'Running' if scheduler_running else 'Not running'})
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
-
-
-def list_previews(request):
-    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
-    if not os.path.exists(preview_dir):
-        return JsonResponse({'previews': []})
-    previews = ['previews/' + f for f in os.listdir(preview_dir) if os.path.isfile(os.path.join(preview_dir, f))]
-    return JsonResponse({'previews': previews})
-
-
-@csrf_exempt
-def start_scheduler_view(request):
-    global scheduler_thread, scheduler_running
-    if request.method == 'POST':
-        if not scheduler_running:
-            scheduler_thread = threading.Thread(target=start_scheduler)
-            scheduler_thread.start()
-            scheduler_running = True
-            return JsonResponse({'status': 'success', 'message': 'Scheduler started successfully'})
-        else:
-            return JsonResponse({'status': 'success', 'message': 'Scheduler is already running'})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
-
-
-
-def get_previews():
-    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
-    if not os.path.exists(preview_dir):
-        os.makedirs(preview_dir)
-    previews = [f for f in os.listdir(preview_dir) if os.path.isfile(os.path.join(preview_dir, f))]
-    logger.info(f"Previews found in directory: {previews}")
-    return previews
+@api_view(['GET'])
+def get_upload_status(request):
+    try:
+        records = get_upload_records()
+        return Response({
+            "status": "success",
+            "upload_details": records
+        })
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
 
 
 
 
-@csrf_exempt
-def upload_document(request, source):
-    if request.method == 'POST' and request.FILES.get('file'):
-        file = request.FILES['file']
-        result = upload_document_to_iliad(source, file)
-
-        if result['status'] == 'success' and 'task_id' in result:
-            status_result = check_upload_status(source, result['task_id'])
-
-            response_data = {
-                'status': status_result['status'],
-                'message': status_result['message'],
-                'full_response': status_result.get('full_response', {}),
-                'task_id': result['task_id']
-            }
-
-            return JsonResponse(response_data)
-        else:
-            return JsonResponse(result)
-
-    error_response = {'status': 'error', 'message': 'Invalid request'}
-    return JsonResponse(error_response)
 
 
 
-@csrf_exempt
-def check_upload_status(request, source, task_id):
-    status_result = check_status(source, task_id)
-    return JsonResponse(status_result)
+
 
 
 @api_view(['GET'])

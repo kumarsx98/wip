@@ -2,16 +2,22 @@ import os
 import time
 import shutil
 import logging
+import urllib.parse
+
 import schedule
 from django.conf import settings
 from cryptography.fernet import Fernet
 import requests
+from rest_framework.response import Response
+from rest_framework.decorators import api_view
+
 from .models import UploadRecord
 
 logger = logging.getLogger(__name__)
 
 ILIAD_URL = settings.ILIAD_URL
 PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL  # URL base for preview
+
 
 def get_headers():
     try:
@@ -30,6 +36,7 @@ def get_headers():
     except Exception as e:
         logger.error(f"Error creating headers: {str(e)}")
         return None
+
 
 def get_sources_from_iliad():
     try:
@@ -58,6 +65,7 @@ def get_sources_from_iliad():
         logger.error(f"Error fetching sources from Iliad API: {e}")
         return []
 
+
 def get_documents_from_iliad(source):
     try:
         headers = get_headers()
@@ -77,6 +85,7 @@ def get_documents_from_iliad(source):
         logger.error(f"Error fetching documents from Iliad API: {str(e)}")
         return []
 
+
 def delete_existing_document(source, filename):
     try:
         headers = get_headers()
@@ -93,8 +102,7 @@ def delete_existing_document(source, filename):
                     logger.info(f"Document '{filename}' deleted successfully from source '{source}'.")
                     return True
                 else:
-                    logger.warning(
-                        f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
+                    logger.warning(f"Failed to delete document '{filename}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
                     return False
         logger.info(f"Document '{filename}' not found in source '{source}'.")
         return True
@@ -102,30 +110,29 @@ def delete_existing_document(source, filename):
         logger.error(f"Error deleting document '{filename}': {str(e)}")
         return False
 
-import urllib.parse
 
 def save_file_for_preview(file_path, source):
-    """
-    Save a copy of the file for preview purposes.
-    """
     try:
         filename = os.path.basename(file_path)
+        # Create a clean filename that matches the working pattern
+        clean_filename = f"{source}#{filename}"
+
         preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
         if not os.path.exists(preview_dir):
             os.makedirs(preview_dir)
 
-        new_file_path = os.path.join(preview_dir, filename)
-
+        new_file_path = os.path.join(preview_dir, clean_filename)
         shutil.copy(file_path, new_file_path)
 
-        encoded_filename = urllib.parse.quote(filename)
+        # Construct preview URL using the correct pattern
+        encoded_filename = urllib.parse.quote(clean_filename)
         preview_url = f"{PREVIEW_BASE_URL}/media/previews/{encoded_filename}"
+
         logger.info(f"Saved file for preview: {new_file_path}, URL: {preview_url}")
         return preview_url
     except Exception as e:
         logger.error(f"Error saving file for preview: {str(e)}")
         return None
-
 
 
 def upload_document_to_iliad(source, file_path):
@@ -135,24 +142,20 @@ def upload_document_to_iliad(source, file_path):
             return None
 
         filename = os.path.basename(file_path)
+        logger.info(f"API Called'{filename}'")
 
-        # Delete existing document if it exists
         if not delete_existing_document(source, filename):
             logger.error(f"Failed to delete existing document '{filename}' from source '{source}'.")
             return None
 
-        preview_url = save_file_for_preview(file_path, source)  # Save file copy for preview
+        # Save file for preview with the correct source prefix
+        preview_url = save_file_for_preview(file_path, source.lower())
 
         with open(file_path, 'rb') as file:
             url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
             files = {"file": (filename, file, 'application/octet-stream')}
 
             logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
-
-            file.seek(0)
-            logger.info(f"First 100 bytes of file {file_path}: {file.read(100)}")
-            file.seek(0)
-
             response = requests.post(url, headers=headers, files=files)
 
         logger.info(f"Iliad API response for {file_path}: Status {response.status_code}, Content: {response.text}")
@@ -160,12 +163,12 @@ def upload_document_to_iliad(source, file_path):
         if response.status_code in [200, 201, 202]:
             response_json = response.json()
             task_id = response_json.get('task_id')
-            if task_id:
-                logger.info(f"Received task ID: {task_id}")
-                return {"status": "PENDING", "task_id": task_id, "preview_url": preview_url}
-            else:
-                logger.info("No task ID received, but upload seems successful")
-                return {"status": "COMPLETED", "message": "Upload successful", "preview_url": preview_url}
+            return {
+                "status": "PENDING" if task_id else "COMPLETED",
+                "task_id": task_id,
+                "preview_url": preview_url,
+                "message": "Upload successful"
+            }
         else:
             logger.error(f"Error uploading document to Iliad API. Status code: {response.status_code}")
             return None
@@ -174,6 +177,7 @@ def upload_document_to_iliad(source, file_path):
         logger.error(f"Error uploading document to Iliad API: {str(e)}")
         return None
 
+
 def check_upload_status(source, task_id):
     try:
         headers = get_headers()
@@ -181,19 +185,26 @@ def check_upload_status(source, task_id):
             return None
 
         url = f"{ILIAD_URL}/api/v1/sources/{source}/{task_id}"
-        logger.info(f"Checking upload status: URL: {url}, Task ID: {task_id}")
+        logger.info(f"Checking status for task {task_id} in source {source}")
 
         response = requests.get(url, headers=headers)
-        logger.info(f"Upload status response: Status {response.status_code}, Content: {response.text}")
+        logger.info(f"Status check response: {response.status_code} - {response.text}")
 
         if response.status_code == 200:
             status_data = response.json()
-            if status_data.get('status') in ['COMPLETED', 'SUCCESS']:
+            current_status = status_data.get('status', '').upper()
+
+            if current_status in ['COMPLETED', 'SUCCESS']:
+                UploadRecord.objects.filter(task_id=task_id).update(status='COMPLETED')
                 return {'status': 'COMPLETED'}
-            return status_data
+            elif current_status == 'FAILED':
+                UploadRecord.objects.filter(task_id=task_id).update(status='FAILED')
+                return {'status': 'FAILED'}
+            else:
+                return {'status': 'PENDING'}
         elif response.status_code == 404:
-            logger.warning(f"Task ID: {task_id}. Assuming upload was successful.")
-            return {"status": "COMPLETED", "message": "Assuming upload was successful"}
+            UploadRecord.objects.filter(task_id=task_id).update(status='COMPLETED')
+            return {"status": "COMPLETED"}
         else:
             logger.error(f"Error checking upload status. Status code: {response.status_code}")
             return None
@@ -201,36 +212,78 @@ def check_upload_status(source, task_id):
         logger.error(f"Error checking upload status: {str(e)}")
         return None
 
+
+def get_upload_records():
+    try:
+        records = UploadRecord.objects.all().order_by('-timestamp')[:50]
+        updated_records = []
+
+        for record in records:
+            if record.status == 'PENDING' and record.task_id:
+                status_result = check_upload_status(record.source, record.task_id)
+                if status_result and status_result['status'] != 'PENDING':
+                    record.status = status_result['status']
+                    record.save()
+
+            # Construct the preview URL using the correct pattern
+            preview_url = None
+            if record.preview_url:
+                filename = f"{record.source}#{os.path.basename(record.file_name)}"
+                encoded_filename = urllib.parse.quote(filename)
+                preview_url = f"{PREVIEW_BASE_URL}/media/previews/{encoded_filename}"
+
+            updated_records.append({
+                "file_name": record.file_name,
+                "source": record.source,
+                "status": record.status,
+                "task_id": record.task_id,
+                "timestamp": record.timestamp.isoformat() if record.timestamp else None,
+                "preview_url": preview_url
+            })
+
+        return updated_records
+    except Exception as e:
+        logger.error(f"Error fetching upload records: {str(e)}")
+        return []
+
+
+@api_view(['GET'])
+def get_upload_status(request):
+    try:
+        records = get_upload_records()
+
+        completed_files = sum(1 for record in records if record['status'] == 'COMPLETED')
+
+        return Response({
+            "status": "success",
+            "upload_details": records,
+            "processed_files": completed_files
+        })
+    except Exception as e:
+        return Response({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
 def get_source_from_filename(filename, sources):
     parts = filename.split('#')
-    logger.info(f"Filename parts: {parts}")
-    logger.info(f"Available sources: {sources}")
-
     for i in range(1, len(parts) + 1):
         potential_source = '-'.join(parts[:i]).lower()
-        logger.info(f"Checking potential source: {potential_source}")
         if potential_source in sources:
-            logger.info(f"Source found: {potential_source}")
             return potential_source
-
-    logger.warning(f"No matching source found for filename: {filename}")
     return None
+
 
 def process_documents():
     auto_upload_dir = os.path.join(settings.MEDIA_ROOT, 'auto_upload')
     manual_check_dir = os.path.join(settings.MEDIA_ROOT, 'manual_check')
 
-    # Ensure the auto_upload directory exists
     if not os.path.exists(auto_upload_dir):
         os.makedirs(auto_upload_dir)
         logger.info(f"Created auto_upload directory: {auto_upload_dir}")
 
-    logger.info(f"Auto upload directory: {auto_upload_dir}")
-    logger.info(f"Manual check directory: {manual_check_dir}")
-
     sources = get_sources_from_iliad()
-    logger.info(f"Retrieved sources from Iliad: {sources}")
-
     if not sources:
         logger.error("No sources available. Skipping document processing.")
         return {"processed_files": [], "unprocessed_files": []}
@@ -240,26 +293,17 @@ def process_documents():
 
     try:
         files_in_directory = os.listdir(auto_upload_dir)
-        logger.info(f"Files in auto_upload directory: {files_in_directory}")
-
-        if not files_in_directory:
-            logger.info("No files found in auto_upload directory.")
 
         for filename in files_in_directory:
             file_path = os.path.join(auto_upload_dir, filename)
-            logger.info(f"Processing file: {filename}")
 
             if not os.path.isfile(file_path):
-                logger.warning(f"Skipping non-file item: {filename}")
                 unprocessed_files.append({"file_name": filename, "reason": "Not a file"})
                 continue
 
-            # Check file extension
             _, file_extension = os.path.splitext(filename)
             if file_extension.lower() in ['.docx', '.doc']:
-                logger.warning(f"Unsupported file type: {file_extension}. Moving to manual check folder.")
                 shutil.move(file_path, os.path.join(manual_check_dir, filename))
-                logger.info(f"Moved {filename} to manual check folder")
                 UploadRecord.objects.create(
                     file_name=filename,
                     source='UNKNOWN',
@@ -269,12 +313,9 @@ def process_documents():
                 continue
 
             source = get_source_from_filename(filename, sources)
-            logger.info(f"Detected source for {filename}: {source}")
 
             if not source:
-                logger.warning(f"No source found for filename: {filename}. Moving to manual check folder.")
                 shutil.move(file_path, os.path.join(manual_check_dir, filename))
-                logger.info(f"Moved {filename} to manual check folder")
                 UploadRecord.objects.create(
                     file_name=filename,
                     source='UNKNOWN',
@@ -284,90 +325,51 @@ def process_documents():
                 continue
 
             upload_result = upload_document_to_iliad(source, file_path)
-            logger.info(f"Upload result for {filename}: {upload_result}")
 
-            if not upload_result:
-                logger.error(f"Failed to upload {filename} to Iliad API. Moving to manual check folder.")
+            if upload_result:
+                status = upload_result.get('status', 'PENDING')
+                task_id = upload_result.get('task_id')
+                preview_url = upload_result.get('preview_url')
+
+                record = UploadRecord.objects.create(
+                    file_name=filename,
+                    source=source,
+                    status=status,
+                    task_id=task_id,
+                    preview_url=preview_url
+                )
+                if task_id:
+                    status_result = check_upload_status(source, task_id)
+                    if status_result and status_result['status'] != 'PENDING':
+                        record.status = status_result['status']
+                        record.save()
+
+                processed_files.append({
+                    "file_name": filename,
+                    "source": source,
+                    "status": record.status,
+                    "task_id": task_id,
+                    "preview_url": preview_url
+                })
+                os.remove(file_path)
+            else:
                 shutil.move(file_path, os.path.join(manual_check_dir, filename))
-                logger.info(f"Moved {filename} to manual check folder")
                 UploadRecord.objects.create(
                     file_name=filename,
                     source=source,
-                    status='UPLOAD_FAILED'
+                    status='FAILED'
                 )
                 unprocessed_files.append({"file_name": filename, "reason": "Upload failed"})
-                continue
 
-            status = upload_result.get('status', 'UNKNOWN')
-            task_id = upload_result.get('task_id')
-            preview_url = upload_result.get('preview_url', '')
-
-            UploadRecord.objects.create(
-                file_name=filename,
-                source=source,
-                status=status,
-                task_id=task_id,
-                preview_url=preview_url  # Save the preview URL
-            )
-            logger.info(f"Created UploadRecord for {filename}")
-
-            if status == 'PENDING' and task_id:
-                max_retries = 5
-                retry_delay = 30  # seconds
-                for attempt in range(max_retries):
-                    time.sleep(retry_delay)
-                    upload_status = check_upload_status(source, task_id)
-                    if upload_status and upload_status.get('status') in ['COMPLETED', 'SUCCESS']:
-                        os.remove(file_path)
-                        logger.info(f"Removed {filename} from auto_upload directory")
-                        UploadRecord.objects.filter(file_name=filename).update(status='COMPLETED')
-                        processed_files.append({
-                            "file_name": filename,
-                            "status": "COMPLETED",
-                            "preview_url": preview_url,  # Ensure to include the preview URL
-                            "task_id": task_id
-                        })
-                        logger.info(f"File {filename} uploaded successfully to Iliad API after {attempt + 1} attempts.")
-                        break
-                    elif upload_status and upload_status.get('status') == 'FAILED':
-                        unprocessed_files.append({"file_name": filename, "reason": "Upload failed"})
-                        logger.error(f"Upload failed for {filename} after {attempt + 1} attempts.")
-                        shutil.move(file_path, os.path.join(manual_check_dir, filename))
-                        logger.info(f"Moved {filename} to manual check folder")
-                        UploadRecord.objects.filter(file_name=filename).update(status='UPLOAD_FAILED')
-                        break
-                else:
-                    unprocessed_files.append({"file_name": filename, "reason": "Max retries reached"})
-            else:
-                processed_files.append({
-                    "file_name": filename,
-                    "status": status,
-                    "preview_url": preview_url,
-                    "task_id": task_id
-                })
+        return {
+            "processed_files": processed_files,
+            "unprocessed_files": unprocessed_files
+        }
 
     except Exception as e:
         logger.error(f"Error processing documents: {str(e)}")
-
-    logger.info(f"Processed files: {processed_files}")
-    logger.info(f"Unprocessed files: {unprocessed_files}")
-    return {"processed_files": processed_files, "unprocessed_files": unprocessed_files}
-
-def scheduled_process():
-    try:
-        logger.info("Running scheduled document processing")
-        processed_files = process_documents()
-        if not processed_files:
-            return {"status": "success", "message": "No files processed."}
-
-        return {"status": "success", "processed": processed_files}
-    except Exception as e:
-        logger.error(f"Error in scheduled process: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-def start_scheduler():
-    schedule.every(10).minutes.do(scheduled_process)  # Adjust the schedule as needed
-    logger.info("Scheduler started for auto-upload process")
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+        return {
+            "error": str(e),
+            "processed_files": processed_files,
+            "unprocessed_files": unprocessed_files
+        }
