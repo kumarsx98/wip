@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Define the base URL
+# Define the base URL anc change accordinglly
 #BASE_URL = config('BASE_URL', default='http://localhost:8001')
 BASE_URL = config('BASE_URL', default='http://oad-ai.abbvienet.com:8001')
 
