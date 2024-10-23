@@ -153,6 +153,12 @@ body {
   cursor: pointer;
 }
 
+/* Optional: Ensure any .spinner inside button is hidden */
+.input-container button .spinner {
+  display: none;
+}
+
+/* Retain spinner styles for general use outside send button */
 .spinner {
   border: 2px solid rgba(0, 0, 0, 0.1);
   border-left-color: #888;
