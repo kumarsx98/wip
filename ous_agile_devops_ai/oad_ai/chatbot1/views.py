@@ -77,15 +77,6 @@ def get_upload_status(request):
             "message": str(e)
         }, status=500)
 
-
-
-
-
-
-
-
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_info(request):
@@ -258,6 +249,91 @@ def list_sources(request):
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
+
+
+
+
+
+
+@csrf_exempt
+def get_user_token(request):
+    logger.info("get_user_token view called.")
+
+    if request.method == 'GET':
+        try:
+            response_data = {
+                'user_token': settings.AUTH_TOKEN,  # Assuming settings.AUTH_TOKEN is the correct token to pass
+            }
+            logger.info(f"Providing token: {response_data}")
+            return JsonResponse(response_data)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+
+    logger.warning("Invalid HTTP method used.")
+    return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
+@csrf_exempt
+def delete_source(request, source):
+    logger.info("delete_source view called.")
+
+    if request.method == "DELETE":
+        try:
+            # Decrypt the API key
+            try:
+                encryption_key = settings.ENCRYPTION_KEY.encode()
+                encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
+                cipher_suite = Fernet(encryption_key)
+                api_key = cipher_suite.decrypt(encrypted_api_key).decode()
+            except Exception as e:
+                logger.error(f"Decryption failed: {e}")
+                return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
+
+            # Set up the API request
+            ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
+            headers = {
+                "x-api-key": api_key,
+                "x-user-token": settings.AUTH_TOKEN,
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+
+            url = f"{ILIAD_URL}/api/v1/sources/{source}"
+
+            logger.info(f"Sending DELETE request to {url}")
+            logger.info(f"Request headers: {headers}")
+
+            # Send the request to the external API
+            resp = requests.delete(url=url, headers=headers)
+
+            logger.info(f"API response status code: {resp.status_code}")
+            logger.info(f"API response body: {resp.text if resp.text else 'No content'}")
+
+            if resp.status_code == 204:
+                logger.info(f"Source successfully deleted: {source}")
+                return JsonResponse({}, status=204)
+            elif resp.status_code == 401:
+                logger.error("Unauthorized: Client did not authenticate with x-user-token header.")
+                return JsonResponse({'error': 'Unauthorized'}, status=401)
+            elif resp.status_code == 403:
+                logger.error("Forbidden: The client does not have permission to access the source.")
+                return JsonResponse({'error': 'Forbidden'}, status=403)
+            elif resp.status_code == 404:
+                logger.error("Not Found: Requested source does not exist.")
+                return JsonResponse({'error': 'Not Found'}, status=404)
+            elif resp.status_code == 422:
+                logger.error("Unprocessable Entity: Poorly formatted request.")
+                return JsonResponse({'error': 'Unprocessable Entity'}, status=422)
+            else:
+                logger.error(f"Unexpected status code received: {resp.status_code}")
+                return JsonResponse({'error': f"Unexpected status code: {resp.status_code}"}, status=resp.status_code)
+
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+
+    logger.warning("Invalid HTTP method used.")
+    return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
 @csrf_exempt
 def chat_with_source(request, source_name):
@@ -543,6 +619,8 @@ def create_source(request):
 
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
+
 
 
 @csrf_exempt

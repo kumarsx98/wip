@@ -6,11 +6,10 @@ import Documents from './Documents';
 import AutoUploadManager from './AutoUploadManager';
 import ChatWithSource from './ChatWithSource';
 import CreateSource from './CreateSource';
-import Chatbot from './Chatbot'; // Import Chatbot
+import DeleteSource from './DeleteSource'; // Import DeleteSource
 import FilePreview from './FilePreview';
 import WebSocketComponent from './WebSocketComponent';
 import ProtectedRoute from './ProtectedRoute';
-import Login from './Login'; // Import the Login component
 
 function Home() {
   const { user } = useAuth();
@@ -42,6 +41,9 @@ function Home() {
             <li style={{ margin: '5px 0' }}> {/* Reduce margin */}
               <Link to="/auto-upload" style={{ color: '#007bff', textDecoration: 'none' }}>Manage Auto-Uploads</Link>
             </li>
+            <li style={{ margin: '5px 0' }}>  {/* Reduce margin */}
+              <Link to="/delete-source" style={{ color: '#d9534f', textDecoration: 'none' }}>Delete a Source</Link> {/* New link for deleting a source */}
+            </li>
           </>
         )}
         {!user && (
@@ -58,11 +60,11 @@ function Home() {
       )}
 
       <Routes>
-        <Route path="/auto-upload" element={<ProtectedRoute component={AutoUploadManager} />} />
-        <Route path="/chat-with-source/:sourceName" element={<ProtectedRoute component={ChatWithSource} />} />
-        <Route path="/media/previews/*" element={<ProtectedRoute component={FilePreview} />} />
-        <Route path="/websocket-test" element={<ProtectedRoute component={WebSocketComponent} />} />
-        <Route path="/chatbot/:mysource" element={<ProtectedRoute component={Chatbot} />} /> {/* Add route for Chatbot with mysource param */}
+        <Route path="/auto-upload" element={<AutoUploadManager />} />
+        <Route path="/chat-with-source/:sourceName" element={<ChatWithSource />} />
+        <Route path="/media/previews/*" element={<FilePreview />} />
+        <Route path="/websocket-test" element={<WebSocketComponent />} />
+        <Route path="/delete-source" element={<ProtectedRoute component={DeleteSource} />} /> {/* Protected Delete Source */}
 
         {/* Protected Routes */}
         <Route path="/sources" element={<ProtectedRoute component={ListSources} />} />

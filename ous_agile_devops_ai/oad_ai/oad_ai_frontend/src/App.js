@@ -6,6 +6,7 @@ import ChatWithSource from './ChatWithSource';
 import CreateSource from './CreateSource';
 import ListSources from './ListSources';
 import Documents from './Documents';
+import DeleteSource from './DeleteSource'; // Import DeleteSource component
 import Navigation from './Navigation';
 import AutoUploadManager from './AutoUploadManager';
 import { AuthProvider } from './AuthContext';
@@ -34,6 +35,7 @@ const App = () => {
           <Route path="/websocket-test" element={<ProtectedRoute component={WebSocketComponent} />} />
           <Route path="/sources/:sourceName/documents" element={<ProtectedRoute component={Documents} />} />
           <Route path="/sources/:source/upload" element={<ProtectedRoute component={<div />} />} /> {/* Placeholder */}
+          <Route path="/delete-source" element={<ProtectedRoute component={DeleteSource} />} /> {/* Protected Delete Source */}
         </Routes>
       </Router>
     </AuthProvider>

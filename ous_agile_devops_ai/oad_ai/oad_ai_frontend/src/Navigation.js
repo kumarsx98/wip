@@ -15,6 +15,7 @@ function Navigation() {
           <>
             <li><Link to="/create-source">Create a New Source</Link></li>
             <li><Link to="/auto-upload">Manage Auto-Uploads</Link></li>
+            <li><Link to="/delete-source">Delete a Source</Link></li> {/* New link for deleting a source */}
           </>
         )}
         {user ? (
