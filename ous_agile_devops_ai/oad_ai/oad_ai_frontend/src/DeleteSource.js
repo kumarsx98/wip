@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 //const backendURL = 'http://localhost:8001'; // Your backend URL
-const baseURL = 'http://oad-ai.abbvienet.com:8001';
+const backendURL = 'http://oad-ai.abbvienet.com:8001';
 
 function DeleteSource() {
   const [sourceName, setSourceName] = useState('');
