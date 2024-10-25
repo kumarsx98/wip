@@ -197,26 +197,30 @@ function Documents() {
     setMessage('');
 
     try {
-      const response = await axios.delete(`${baseURL}/chatbot1/delete-document/${sourceName}/${documentId}/`, {
-        headers: {
-          'X-CSRFToken': getCookie('csrftoken'),
-        },
-        withCredentials: true,
-      });
+        const response = await axios.delete(`${baseURL}/chatbot1/delete-document/${sourceName}/${documentId}/`, {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            withCredentials: true,
+        });
 
-      if (response.status === 204) {
-        setMessage(`${filename} was deleted successfully.`);
-        fetchDocuments(sourceName);
-      } else {
-        setMessage('An error occurred while deleting the document.');
-      }
+        if (response.status === 204) {
+            // Optimistically remove the deleted document from the state
+            setDocuments(previousDocs => previousDocs.filter(doc => doc.id !== documentId));
+            setMessage(`${filename} was deleted successfully.`);
+            // Fetch the updated documents list to ensure the state is in sync
+            fetchDocuments(sourceName);
+        } else {
+            setMessage('An error occurred while deleting the document.');
+        }
     } catch (error) {
-      console.error('Error during document deletion:', error);
-      setMessage(error.response?.data?.error || 'An error occurred while deleting the document.');
+        console.error('Error during document deletion:', error);
+        setMessage(error.response?.data?.error || 'An error occurred while deleting the document.');
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
-  };
+};
+
 
   const pollUploadStatus = async (source, taskId, maxAttempts = 10) => {
     for (let i = 0; i < maxAttempts; i++) {

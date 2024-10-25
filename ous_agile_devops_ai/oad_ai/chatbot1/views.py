@@ -77,6 +77,8 @@ def get_upload_status(request):
             "message": str(e)
         }, status=500)
 
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_info(request):
@@ -459,6 +461,7 @@ def delete_document(request, source, document_id):
     except requests.RequestException as e:
         logger.error(f"Request exception: {e}")
         return JsonResponse({'error': str(e)}, status=500)
+
 
 
 @csrf_exempt
