@@ -33,19 +33,14 @@ const ChatWithSource = () => {
     setIsLoading(true);
     setShowSpinner(true);
 
-    const messagePayload = {
-      model: 'gpt-4-turbo',
-      messages: updatedMessages.map((msg) => ({
-        role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
-      }))
-    };
-
     try {
       const response = await axios.post(`${baseURL}/chat-with-source/${sourceName}/`, {
         question: input,
         filters: JSON.stringify({}),
-        history: messagePayload.messages // Include the history in the request
+        history: updatedMessages.map((msg) => ({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text,
+        })),
       });
 
       console.log('Received response from API:', response.data);
@@ -62,19 +57,17 @@ const ChatWithSource = () => {
         sender: 'bot',
         copyButton: true,
         filenames: response.data.response.references ? response.data.response.references.map((ref) => ref.filename) : [],
-        references: response.data.response.references
+        references: response.data.response.references,
       };
 
-      // Update messages with the bot response
-      const updatedMessagesWithBot = [...updatedMessages, botMessage];
-      setMessages(updatedMessagesWithBot);
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
 
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage = {
         text: 'Sorry, an error occurred while processing your request.',
         sender: 'bot',
-        copyButton: false
+        copyButton: false,
       };
       setMessages((prevMessages) => [...prevMessages, errorMessage]);
     } finally {
@@ -131,25 +124,13 @@ const ChatWithSource = () => {
         conversationBoxRef={conversationBoxRef}
         sourceName={sourceName}
       />
-      <form className="input-box" onSubmit={handleSendMessage}>
-        <div className="input-container">
-          <input
-            type="text"
-            name="message"
-            placeholder="Ask OUS Agile DevOps.."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-          />
-          <button className="bot-button" type="submit" disabled={isLoading}>
-            {isLoading ? (
-              <div className="spinner spinner-button"></div>
-            ) : (
-              <div className="spinner spinner-button" style={{ display: showSpinner ? 'block' : 'none' }}></div>
-            )}
-            Send
-          </button>
-        </div>
-      </form>
+      <InputBox
+        question={input}
+        setQuestion={setInput}
+        handleSendMessage={handleSendMessage}
+        isLoading={isLoading}
+        showSpinner={showSpinner}
+      />
     </div>
   );
 };
