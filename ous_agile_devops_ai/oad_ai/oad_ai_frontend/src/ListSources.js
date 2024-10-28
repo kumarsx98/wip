@@ -5,7 +5,7 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001';
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 11;
 
 function ListSources() {
     const [privateSources, setPrivateSources] = useState([]);
