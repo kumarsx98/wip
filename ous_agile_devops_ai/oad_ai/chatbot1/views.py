@@ -4,7 +4,18 @@
 
 import json
 #from wsgiref.validate import check_status
+import datetime
+import pytz
+from django.http import JsonResponse
+from django.utils.timezone import now
+from .models import Source, UploadRecord
+import concurrent.futures
+import requests
+from django.views.decorators.csrf import csrf_exempt
+import logging
+import traceback
 
+logger = logging.getLogger(__name__)
 from .auto_uploader import process_documents, get_upload_records
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -55,6 +66,25 @@ from .document_uploader import upload_document_to_iliad, check_upload_status as 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
+import requests
+from django.conf import settings
+from cryptography.fernet import Fernet
+
+
+# Helper function to generate headers
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+# Helper function as previously defined
 def check_status(source, task_id):
     # implement your status check logic here
     # this dummy implementation returns a fake status
@@ -64,58 +94,6 @@ def check_status(source, task_id):
         'full_response': {}
     }
 
-
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-import os
-
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-import os
-from django.conf import settings
-from cryptography.fernet import Fernet
-import requests
-
-
-# Helper function to generate headers
-def get_api_headers():
-    encryption_key = settings.ENCRYPTION_KEY.encode()
-    encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
-    cipher_suite = Fernet(encryption_key)
-    api_key = cipher_suite.decrypt(encrypted_api_key).decode()
-    headers = {
-        "x-api-key": api_key,
-        "x-user-token": settings.AUTH_TOKEN,
-        "Authorization": f"Bearer {settings.AUTH_TOKEN}"
-    }
-    return headers
-
-
-def check_status(source, task_id):
-    # Perform an actual status check from the ILIAD API or your status checking logic
-    try:
-        headers = get_api_headers()
-        url = f"{settings.ILIAD_URL}/api/v1/sources/{source}/{task_id}"
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        status_data = response.json()
-        return {
-            'status': status_data.get('status', 'UNKNOWN'),
-            'message': status_data.get('message', 'Status check completed.'),
-            'full_response': status_data
-        }
-    except requests.RequestException as e:
-        return {
-            'status': 'ERROR',
-            'message': str(e),
-            'full_response': {'error': str(e)}
-        }
-
-
 @csrf_exempt
 def upload_document(request, source=None):
     if not source:
@@ -123,25 +101,16 @@ def upload_document(request, source=None):
 
     if request.method == 'POST' and request.FILES.get('file'):
         file = request.FILES['file']
-
-        # Save the file to the 'previews' folder
-        file_path = os.path.join('previews', file.name)
-        file_full_path = os.path.join(settings.MEDIA_ROOT, file_path)
-        if not os.path.exists(os.path.dirname(file_full_path)):
-            os.makedirs(os.path.dirname(file_full_path))
-        path = default_storage.save(file_path, ContentFile(file.read()))
-
-        # Pretend to upload the document to Iliad
         result = upload_document_to_iliad(source, file)
 
+        # Instead of invoking check_upload_status, just return the response from the upload function
         if result['status'] == 'success' and 'task_id' in result:
-            preview_url = os.path.join(settings.MEDIA_URL, file_path)
             response_data = {
                 'status': 'success',
                 'message': 'Document uploaded successfully.',
                 'task_id': result['task_id'],
                 'document_id': result.get('document_id'),
-                'preview_url': preview_url,
+                'preview_url': result.get('preview_url')  # Ensure this is included in the response
             }
             return JsonResponse(response_data)
         else:
@@ -156,35 +125,6 @@ def check_upload_status_view(request, source, task_id):
     status_result = check_status(source, task_id)
     return JsonResponse(status_result)
 
-
-def upload_document_to_iliad(source, file):
-    headers = get_api_headers()
-    try:
-        filename = file.name
-        url = f"{settings.ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
-        files = {"file": (filename, file, 'application/octet-stream')}
-
-        response = requests.post(url, headers=headers, files=files)
-
-        if response.status_code in [200, 201, 202]:
-            response_json = response.json()
-            task_id = response_json.get('task_id')
-            return {
-                "status": "PENDING" if task_id else "COMPLETED",
-                "task_id": task_id,
-                "preview_url": None,  # This will be constructed separately
-                "message": "Upload successful"
-            }
-        else:
-            return {
-                "status": "error",
-                "message": f"API error: {response.text}"
-            }
-    except requests.RequestException as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
 
 
 @csrf_exempt
@@ -268,6 +208,13 @@ def list_documents(request, source):
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
 
 
+import datetime
+import pytz
+from django.utils.timezone import make_aware
+
+# chatbot1/views.py
+
+
 @csrf_exempt
 def list_sources(request):
     logger.info("list_sources view called.")
@@ -282,6 +229,7 @@ def list_sources(request):
             except Exception as e:
                 logger.error(f"Decryption failed: {e}")
                 return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
+
             # Set up the API request
             ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
             headers = {
@@ -293,6 +241,7 @@ def list_sources(request):
             url = f"{ILIAD_URL}/api/v1/sources/"
             logger.info(f"Sending request to {url}")
             logger.info(f"Request headers: {headers}")
+
             # Send the request to the external API
             resp = requests.get(url=url, headers=headers)
             logger.info(f"API response status code: {resp.status_code}")
@@ -308,68 +257,70 @@ def list_sources(request):
             logger.error(f"Unexpected error: {e}")
             logger.error(traceback.format_exc())
             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+
         def serialize_source(source):
             return {
                 'name': source.name,
+                'description': source.description or 'N/A',
                 'visibility': source.visibility,
                 'model': source.model or 'N/A',
-                'created_at': source.created_at.strftime('%Y-%m-%d %H:%M:%S') if source.created_at else 'N/A',
-                'updated_at': source.updated_at.strftime('%Y-%m-%d %H:%M:%S') if source.updated_at else 'N/A',
+                'created_at': source.created_at.astimezone(pytz.utc).isoformat(),
+                'updated_at': source.updated_at.astimezone(pytz.utc).isoformat(),
             }
+
         def serialize_external_source(source_name, visibility, details=None):
             def format_date(date_str):
                 if date_str == 'N/A' or date_str is None:
                     return 'N/A'
                 try:
-                    formatted_date = datetime.datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ')
-                    return formatted_date.strftime('%Y-%m-%d %H:%M:%S')
+                    formatted_date = datetime.datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc)
+                    return formatted_date.isoformat()
                 except ValueError:
-                    # In case the date format is not as expected, return it as it is for safety
-                    return date_str
+                    return date_str  # return as it is if not in expected format
+
             if details is None:
-                logger.warning(f"No details available for source: {source_name}")
                 return {
                     'name': source_name,
+                    'description': 'N/A',
                     'visibility': visibility,
                     'model': 'N/A',
                     'created_at': 'N/A',
                     'updated_at': 'N/A',
                 }
             else:
-                logger.info(f"Serialized details for source: {source_name} - {details}")
                 return {
                     'name': source_name,
+                    'description': details.get('description', 'N/A'),
                     'visibility': visibility,
                     'model': details.get('embedding_model', 'N/A'),
                     'created_at': format_date(details.get('created', 'N/A')),
                     'updated_at': format_date(details.get('edited', 'N/A')),
                 }
+
         def fetch_external_source_details(source_name):
             source_url = f"{ILIAD_URL}/api/v1/sources/{source_name}"
-            logger.info(f"Fetching details for source: {source_url}")
             resp = requests.get(source_url, headers=headers)
             if resp.status_code == 200:
-                source_details = resp.json()
-                logger.info(f"Details fetched for source: {source_name} - {source_details}")
-                return source_details
+                return resp.json()
             else:
-                logger.error(f"Failed to fetch details for source: {source_name}, status code: {resp.status_code}")
                 return None
+
         # Fetch sources from the database
         global_sources = Source.objects.filter(visibility='global')
         private_sources = Source.objects.filter(visibility='private')
         global_sources_data = [serialize_source(source) for source in global_sources]
         private_sources_data = [serialize_source(source) for source in private_sources]
+
         external_global_sources = external_sources.get('global_sources', [])
         external_private_sources = external_sources.get('private_sources', [])
-        # Filter external sources to only include those whose names start with "oad"
+
         external_global_sources = [source for source in external_global_sources if source.startswith("oad")]
         external_private_sources = [source for source in external_private_sources if source.startswith("oad")]
-        # Fetch external source details concurrently
+
         with concurrent.futures.ThreadPoolExecutor() as executor:
             external_global_sources_details = list(executor.map(fetch_external_source_details, external_global_sources))
-            external_private_sources_details = list(
-                executor.map(fetch_external_source_details, external_private_sources))
+            external_private_sources_details = list(executor.map(fetch_external_source_details, external_private_sources))
+
         external_global_sources_data = [
             serialize_external_source(source, 'global', details) for source, details in
             zip(external_global_sources, external_global_sources_details)
@@ -378,7 +329,7 @@ def list_sources(request):
             serialize_external_source(source, 'private', details) for source, details in
             zip(external_private_sources, external_private_sources_details)
         ]
-        # Combine the external API sources with local database sources
+
         return JsonResponse({
             'external_sources': {
                 'global': external_global_sources_data,
@@ -387,11 +338,7 @@ def list_sources(request):
             'global_sources': global_sources_data,
             'private_sources': private_sources_data,
         })
-    logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
-
-
-
 
 
 
@@ -818,17 +765,6 @@ def sync_source(request, source):
 
 def search(request):
     return render(request, 'chatbot1/search.html')
-
-
-
-
-
-
-
-
-
-
-
 
 
 

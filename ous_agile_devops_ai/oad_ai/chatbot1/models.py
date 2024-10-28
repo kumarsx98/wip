@@ -1,5 +1,6 @@
 # chatbot1/models.py
 from django.db import models
+from django.utils import timezone
 
 class UploadRecord(models.Model):
     file_name = models.CharField(max_length=255)
@@ -21,12 +22,9 @@ class Source(models.Model):
     name = models.CharField(max_length=255, unique=True)
     visibility = models.CharField(max_length=10, choices=VISIBILITY_CHOICES, default='private')
     model = models.CharField(max_length=255)
-    created_at = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(null=True, blank=True)  # Added description field
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} - {self.visibility}"
-
-
-class FileStatus:
-    pass
