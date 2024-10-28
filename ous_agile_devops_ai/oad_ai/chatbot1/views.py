@@ -3,6 +3,8 @@
 # views.py
 
 import json
+#from wsgiref.validate import check_status
+
 from .auto_uploader import process_documents, get_upload_records
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -47,6 +49,143 @@ import asyncio
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.views.decorators.csrf import csrf_exempt
+from .document_uploader import upload_document_to_iliad, check_upload_status as check_status
+
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
+def check_status(source, task_id):
+    # implement your status check logic here
+    # this dummy implementation returns a fake status
+    return {
+        'status': 'SUCCESS',
+        'message': 'Task completed successfully',
+        'full_response': {}
+    }
+
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
+from django.conf import settings
+from cryptography.fernet import Fernet
+import requests
+
+
+# Helper function to generate headers
+def get_api_headers():
+    encryption_key = settings.ENCRYPTION_KEY.encode()
+    encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
+    cipher_suite = Fernet(encryption_key)
+    api_key = cipher_suite.decrypt(encrypted_api_key).decode()
+    headers = {
+        "x-api-key": api_key,
+        "x-user-token": settings.AUTH_TOKEN,
+        "Authorization": f"Bearer {settings.AUTH_TOKEN}"
+    }
+    return headers
+
+
+def check_status(source, task_id):
+    # Perform an actual status check from the ILIAD API or your status checking logic
+    try:
+        headers = get_api_headers()
+        url = f"{settings.ILIAD_URL}/api/v1/sources/{source}/{task_id}"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        status_data = response.json()
+        return {
+            'status': status_data.get('status', 'UNKNOWN'),
+            'message': status_data.get('message', 'Status check completed.'),
+            'full_response': status_data
+        }
+    except requests.RequestException as e:
+        return {
+            'status': 'ERROR',
+            'message': str(e),
+            'full_response': {'error': str(e)}
+        }
+
+
+@csrf_exempt
+def upload_document(request, source=None):
+    if not source:
+        return JsonResponse({'status': 'error', 'message': 'Source parameter is required'}, status=400)
+
+    if request.method == 'POST' and request.FILES.get('file'):
+        file = request.FILES['file']
+
+        # Save the file to the 'previews' folder
+        file_path = os.path.join('previews', file.name)
+        file_full_path = os.path.join(settings.MEDIA_ROOT, file_path)
+        if not os.path.exists(os.path.dirname(file_full_path)):
+            os.makedirs(os.path.dirname(file_full_path))
+        path = default_storage.save(file_path, ContentFile(file.read()))
+
+        # Pretend to upload the document to Iliad
+        result = upload_document_to_iliad(source, file)
+
+        if result['status'] == 'success' and 'task_id' in result:
+            preview_url = os.path.join(settings.MEDIA_URL, file_path)
+            response_data = {
+                'status': 'success',
+                'message': 'Document uploaded successfully.',
+                'task_id': result['task_id'],
+                'document_id': result.get('document_id'),
+                'preview_url': preview_url,
+            }
+            return JsonResponse(response_data)
+        else:
+            return JsonResponse(result)
+
+    error_response = {'status': 'error', 'message': 'Invalid request'}
+    return JsonResponse(error_response)
+
+
+@csrf_exempt
+def check_upload_status_view(request, source, task_id):
+    status_result = check_status(source, task_id)
+    return JsonResponse(status_result)
+
+
+def upload_document_to_iliad(source, file):
+    headers = get_api_headers()
+    try:
+        filename = file.name
+        url = f"{settings.ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
+        files = {"file": (filename, file, 'application/octet-stream')}
+
+        response = requests.post(url, headers=headers, files=files)
+
+        if response.status_code in [200, 201, 202]:
+            response_json = response.json()
+            task_id = response_json.get('task_id')
+            return {
+                "status": "PENDING" if task_id else "COMPLETED",
+                "task_id": task_id,
+                "preview_url": None,  # This will be constructed separately
+                "message": "Upload successful"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"API error: {response.text}"
+            }
+    except requests.RequestException as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 
 @csrf_exempt
 @api_view(['POST'])
@@ -337,6 +476,8 @@ def delete_source(request, source):
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
+
+
 @csrf_exempt
 def chat_with_source(request, source_name):
     if request.method == 'POST':
@@ -344,12 +485,12 @@ def chat_with_source(request, source_name):
             data = json.loads(request.body)
             question = data.get('question', '')
             filters = data.get('filters', '{}')
+            history = data.get('history', [])
             logger.info(f"Received POST data: {data}")
 
             if not isinstance(filters, str):
                 filters = json.dumps(filters)
 
-            # Decrypt the API key
             try:
                 encryption_key = settings.ENCRYPTION_KEY.encode()
                 encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
@@ -360,18 +501,19 @@ def chat_with_source(request, source_name):
                 logger.error(f"Decryption failed: {e}")
                 return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
 
-            # Use the source_name directly from the URL parameter
             source = source_name
             logger.info(f"Using source: {source}")
 
-            # Set up the API request
             ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
             headers = {
                 "x-api-key": api_key,
-                "x-user-token": settings.AUTH_TOKEN
+                "x-user-token": settings.AUTH_TOKEN,
             }
+            if question:
+                history.append({"role": "user", "content": question})
+
             payload = {
-                "messages": [{"role": "user", "content": question}],
+                "messages": history,
                 "filters": filters,
                 "stream": False
             }
@@ -382,13 +524,7 @@ def chat_with_source(request, source_name):
             logger.debug(f"Request headers: {headers}")
             logger.debug(f"Request payload: {json.dumps(payload, indent=2)}")
 
-            # Send the request to the external API
-            resp = requests.post(
-                url=url,
-                headers=headers,
-                json=payload
-            )
-
+            resp = requests.post(url=url, headers=headers, json=payload)
             logger.info(f"API response status code: {resp.status_code}")
             logger.info(f"API response body: {resp.text}")
 
@@ -399,9 +535,15 @@ def chat_with_source(request, source_name):
                 logger.info(f"API Response content: {content}")
                 logger.info(f"API Response references: {references}")
                 response = {'content': content, 'references': references}
+            elif resp.status_code == 404:
+                logger.info(f"No documents found for the query: {question}")
+                response = {'content': "Sorry, no documents were found that match your query.", 'references': []}
+            elif resp.status_code == 422:
+                logger.error(f"Unprocessable Entity: {resp.text}")
+                response = {'content': "The request was poorly formatted and could not be processed.", 'references': []}
             else:
                 logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
-                return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"}, status=500)
+                response = {'content': f"API request failed with status code: {resp.status_code}", 'references': []}
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Request exception: {e}")
@@ -414,10 +556,11 @@ def chat_with_source(request, source_name):
             logger.error(traceback.format_exc())
             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
 
-        return JsonResponse({'question': question, 'response': response})
+        return JsonResponse({'question': question, 'response': response, 'history': payload["messages"]})
 
     logger.warning("Invalid HTTP method used.")
     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+
 
 
 @csrf_exempt
@@ -675,6 +818,8 @@ def sync_source(request, source):
 
 def search(request):
     return render(request, 'chatbot1/search.html')
+
+
 
 
 

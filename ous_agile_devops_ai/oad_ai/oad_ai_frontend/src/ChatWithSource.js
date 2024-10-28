@@ -8,7 +8,7 @@ import CopyButton from './CopyButton';
 import './App.css';
 
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
- const baseURL = 'http://oad-ai.abbvienet.com:8001';
+const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
 const ChatWithSource = () => {
   const { sourceName } = useParams();
@@ -33,10 +33,19 @@ const ChatWithSource = () => {
     setIsLoading(true);
     setShowSpinner(true);
 
+    const messagePayload = {
+      model: 'gpt-4-turbo',
+      messages: updatedMessages.map((msg) => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }))
+    };
+
     try {
       const response = await axios.post(`${baseURL}/chat-with-source/${sourceName}/`, {
         question: input,
         filters: JSON.stringify({}),
+        history: messagePayload.messages // Include the history in the request
       });
 
       console.log('Received response from API:', response.data);
@@ -56,14 +65,16 @@ const ChatWithSource = () => {
         references: response.data.response.references
       };
 
-      setMessages((prevMessages) => [...prevMessages, botMessage]);
+      // Update messages with the bot response
+      const updatedMessagesWithBot = [...updatedMessages, botMessage];
+      setMessages(updatedMessagesWithBot);
 
     } catch (error) {
       console.error('Error sending message:', error);
       const errorMessage = {
         text: 'Sorry, an error occurred while processing your request.',
         sender: 'bot',
-        copyButton: false,
+        copyButton: false
       };
       setMessages((prevMessages) => [...prevMessages, errorMessage]);
     } finally {
@@ -120,13 +131,25 @@ const ChatWithSource = () => {
         conversationBoxRef={conversationBoxRef}
         sourceName={sourceName}
       />
-      <InputBox
-        question={input}
-        setQuestion={setInput}
-        handleSendMessage={handleSendMessage}
-        isLoading={isLoading}
-        showSpinner={showSpinner}
-      />
+      <form className="input-box" onSubmit={handleSendMessage}>
+        <div className="input-container">
+          <input
+            type="text"
+            name="message"
+            placeholder="Ask OUS Agile DevOps.."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          <button className="bot-button" type="submit" disabled={isLoading}>
+            {isLoading ? (
+              <div className="spinner spinner-button"></div>
+            ) : (
+              <div className="spinner spinner-button" style={{ display: showSpinner ? 'block' : 'none' }}></div>
+            )}
+            Send
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
