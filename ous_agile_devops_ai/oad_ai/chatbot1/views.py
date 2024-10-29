@@ -85,6 +85,14 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 # Helper function as previously defined
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .document_uploader import upload_document_to_iliad
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from .document_uploader import upload_document_to_iliad
+
 def check_status(source, task_id):
     # implement your status check logic here
     # this dummy implementation returns a fake status
@@ -124,6 +132,8 @@ def upload_document(request, source=None):
 def check_upload_status_view(request, source, task_id):
     status_result = check_status(source, task_id)
     return JsonResponse(status_result)
+
+
 
 
 

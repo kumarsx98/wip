@@ -5,6 +5,9 @@ import json
 from django.conf import settings
 from cryptography.fernet import Fernet
 from django.core.files.storage import default_storage
+import os
+import shutil
+import urllib.parse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +25,7 @@ API_KEY = fernet.decrypt(ENCRYPTED_API_KEY.encode()).decode()
 # Setting the ILIAD URL
 ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 
+
 def get_api_headers():
     headers = {
         "x-api-key": API_KEY,
@@ -30,6 +34,7 @@ def get_api_headers():
     }
     logger.info(f"Generated headers: {json.dumps(headers, indent=4)}")
     return headers
+
 
 def delete_existing_document(source, document_id):
     try:
@@ -43,6 +48,30 @@ def delete_existing_document(source, document_id):
                 f"Failed to delete document '{document_id}' from source '{source}'. Status: {response.status_code}, Response: {response.text}")
     except requests.RequestException as e:
         logger.error(f"Error deleting document '{document_id}': {str(e)}")
+
+
+def save_file_for_preview(source, file):
+    filename = file.name
+    # Create a clean filename that matches the working pattern
+    clean_filename = f"{source}#{filename}"
+
+    preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
+    if not os.path.exists(preview_dir):
+        os.makedirs(preview_dir)
+
+    new_file_path = os.path.join(preview_dir, clean_filename)
+
+    with default_storage.open(new_file_path, 'wb+') as destination:
+        for chunk in file.chunks():
+            destination.write(chunk)
+
+    # Construct preview URL using the correct pattern
+    encoded_filename = urllib.parse.quote(clean_filename)
+    preview_url = f"{settings.MEDIA_URL}previews/{encoded_filename}"
+
+    logger.info(f"Saved file for preview: {new_file_path}, URL: {preview_url}")
+    return preview_url
+
 
 def upload_document_to_iliad(source, file):
     try:
@@ -63,13 +92,17 @@ def upload_document_to_iliad(source, file):
         if response.status_code in [200, 201, 202]:
             task_id = response_json.get('task_id')
             document_id = response_json.get('document_id')
-            preview_url = f"{settings.MEDIA_URL}previews/{source.lower()}/{file.name}"  # Construct preview URL
+
+            # Save file locally and construct preview URL
+            preview_url = save_file_for_preview(source, file)
+
             return {"status": "success", "task_id": task_id, "document_id": document_id, "preview_url": preview_url}
         else:
             return {"status": "error", "message": f"API error: {response.text}"}
 
     except requests.RequestException as e:
         return {"status": "error", "message": str(e)}
+
 
 def check_upload_status(source, task_id, max_retries=3, delay=10):
     for attempt in range(max_retries):
@@ -113,6 +146,7 @@ def check_upload_status(source, task_id, max_retries=3, delay=10):
         "full_response": {"status": "PENDING"}
     }
 
+
 def get_sources_from_iliad():
     try:
         headers = get_api_headers()
@@ -137,6 +171,7 @@ def get_sources_from_iliad():
         logger.error(f"Error fetching sources from Iliad API: {str(e)}")
         return []
 
+
 def get_documents_from_iliad(source):
     try:
         headers = get_api_headers()
@@ -152,6 +187,7 @@ def get_documents_from_iliad(source):
     except requests.RequestException as e:
         logger.error(f"Error fetching documents from Iliad API: {str(e)}")
         return []
+
 
 def upload_and_verify(source, file):
     upload_result = upload_document_to_iliad(source, file)

@@ -5,13 +5,13 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
+
 function Documents() {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
-  const [uploadSteps, setUploadSteps] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [sortField, setSortField] = useState('filename');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -29,17 +29,15 @@ function Documents() {
     }
   };
 
-  const sortDocuments = (docs) => {
-    return docs.sort((a, b) => {
-      let comparison = 0;
-      if (a[sortField] < b[sortField]) {
-        comparison = -1;
-      } else if (a[sortField] > b[sortField]) {
-        comparison = 1;
-      }
-      return sortDirection === 'asc' ? comparison : -comparison;
-    });
-  };
+  const sortDocuments = (docs) => docs.sort((a, b) => {
+    let comparison = 0;
+    if (a[sortField] < b[sortField]) {
+      comparison = -1;
+    } else if (a[sortField] > b[sortField]) {
+      comparison = 1;
+    }
+    return sortDirection === 'asc' ? comparison : -comparison;
+  });
 
   const checkPreviewAvailability = async (previewUrl) => {
     try {
@@ -65,13 +63,13 @@ function Documents() {
 
       if (response.status === 200 && response.data.documents) {
         const docPromises = response.data.documents.documents.map(async (doc) => {
-          const filename = doc.filename.replace(`${sourceName}#`, ''); // Remove sourceName prefix if present
-          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(`${sourceName}#${filename}`)}`;
+          const filename = `${sourceName}#${doc.filename}`;
+          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(filename)}`;
 
           return {
             ...doc,
-            path: trimPath(doc.path || `/chatbot1/media/documents/${source}/${doc.filename}`),
-            displayName: filename,
+            path: trimPath(`${filename}`),
+            displayName: doc.filename,
             preview_url: previewUrl,
             isPreviewAvailable: await checkPreviewAvailability(previewUrl),
           };
@@ -145,14 +143,13 @@ function Documents() {
     setIsLoading(true);
     setMessage('');
     setUploadProgress(0);
-    setUploadStatus('Preparing upload...');
-    setUploadSteps([]);
+    setUploadStatus('Uploading document...');
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await axios.post(`${baseURL}/chatbot1/upload-document/${sourceName}/`, formData, {
+      const response = await axios.post(`${baseURL}/upload_document/${sourceName}/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'X-CSRFToken': getCookie('csrftoken'),
@@ -168,13 +165,12 @@ function Documents() {
       console.log('Full API Response:', response.data);
 
       if (response.status === 200 || response.status === 201) {
-        setUploadStatus('Upload successful. Processing document...');
-        setUploadSteps((prevSteps) => [...prevSteps, 'Document uploaded successfully']);
-        await pollUploadStatus(sourceName, response.data.task_id);
-      } else if (response.status === 202) {
-        setUploadStatus('Document replaced successfully. Processing...');
-        setUploadSteps((prevSteps) => [...prevSteps, 'Document replaced successfully']);
-        await pollUploadStatus(sourceName, response.data.task_id);
+        setUploadStatus('Document uploaded successfully!');
+
+        // Add a delay before fetching the documents to ensure that the backend processing is complete
+        setTimeout(() => {
+          fetchDocuments(sourceName);
+        }, 1000); // Optionally refresh the document list
       } else {
         setUploadStatus('Upload failed');
         setMessage('An error occurred while uploading the document.');
@@ -197,107 +193,46 @@ function Documents() {
     setMessage('');
 
     try {
-        const response = await axios.delete(`${baseURL}/chatbot1/delete-document/${sourceName}/${documentId}/`, {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-            },
-            withCredentials: true,
-        });
+      const response = await axios.delete(`${baseURL}/chatbot1/delete-document/${sourceName}/${documentId}/`, {
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+        },
+        withCredentials: true,
+      });
 
-        if (response.status === 204) {
-            // Optimistically remove the deleted document from the state
-            setDocuments(previousDocs => previousDocs.filter(doc => doc.id !== documentId));
-            setMessage(`${filename} was deleted successfully.`);
-            // Fetch the updated documents list to ensure the state is in sync
-            fetchDocuments(sourceName);
-        } else {
-            setMessage('An error occurred while deleting the document.');
-        }
-    } catch (error) {
-        console.error('Error during document deletion:', error);
-        setMessage(error.response?.data?.error || 'An error occurred while deleting the document.');
-    } finally {
-        setIsLoading(false);
-    }
-};
-
-
-  const pollUploadStatus = async (source, taskId, maxAttempts = 10) => {
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const response = await axios.get(`${baseURL}/chatbot1/check-upload-status/${source}/${taskId}/`, {
-          headers: {
-            'X-CSRFToken': getCookie('csrftoken'),
-          },
-          withCredentials: true,
-        });
-
-        console.log('Poll response:', response.data);
-
-        if (response.data.status === 'SUCCESS') {
-          setUploadStatus('Upload and processing completed successfully');
-          setUploadSteps((prevSteps) => [...prevSteps, 'Document processed successfully']);
-          setMessage(`Upload completed successfully.\nFull Response: ${JSON.stringify(response.data.full_response, null, 2)}`);
-          await fetchDocuments(source);
-          return;
-        } else if (response.data.status === 'ERROR') {
-          setUploadStatus('Upload failed');
-          setUploadSteps((prevSteps) => [...prevSteps, 'Error during document processing']);
-          setMessage(`Upload failed.\nError: ${response.data.message}\nFull Response: ${JSON.stringify(response.data.full_response, null, 2)}`);
-          return;
-        }
-
-        setUploadStatus(`Processing document... (Attempt ${i + 1}/${maxAttempts})`);
-        setUploadSteps((prevSteps) => [...prevSteps, `Processing attempt ${i + 1}`]);
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-      } catch (error) {
-        console.error('Error polling upload status:', error);
-        setUploadStatus('Error checking upload status');
-        setMessage(`Error checking upload status: ${error.message}`);
-        return;
+      if (response.status === 204) {
+        setDocuments((previousDocs) => previousDocs.filter((doc) => doc.id !== documentId));
+        setMessage(`${filename} was deleted successfully.`);
+        fetchDocuments(sourceName);
+      } else {
+        setMessage('An error occurred while deleting the document.');
       }
+    } catch (error) {
+      console.error('Error during document deletion:', error);
+      setMessage(error.response?.data?.error || 'An error occurred while deleting the document.');
+    } finally {
+      setIsLoading(false);
     }
-
-    setUploadStatus('Upload status check timed out');
-    setMessage('Upload status check timed out. The upload may still be in progress.');
   };
 
   const renderDocuments = () => (
     <div>
-      <h2 style={{ color: '#444', marginTop: '20px' }}>Documents in {sourceName}</h2>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
-        <button onClick={() => navigate('/sources')} style={buttonStyle}>Back to Sources</button>
-        <input type="file" onChange={handleFileChange} style={{ marginRight: '10px' }} />
-        <button onClick={handleUpload} style={uploadButtonStyle}>Upload Document</button>
-        <button onClick={handleSyncSource} style={syncButtonStyle}>Sync Source</button>
-        <a
-          href={`/chat-with-source/${sourceName}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={chatButtonStyle}
-        >
-          Chat with Source
-        </a>
-      </div>
-      {uploadStatus && (
-        <div>
-          <p>{uploadStatus}</p>
-          <progress value={uploadProgress} max="100">{uploadProgress}%</progress>
-          {uploadSteps.map((step, index) => (
-            <p key={index}>{step}</p>
-          ))}
-        </div>
-      )}
       {documents.length > 0 ? (
         <>
           <p>Total documents: {documents.length}</p>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px', backgroundColor: '#fff' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('filename')}>
+                <th
+                  style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }}
+                  onClick={() => handleSort('filename')}
+                >
                   Filename {sortField === 'filename' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </th>
-                <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('path')}>
+                <th
+                  style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }}
+                  onClick={() => handleSort('path')}
+                >
                   Path {sortField === 'path' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </th>
                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Preview</th>
@@ -320,7 +255,7 @@ function Documents() {
                         View Preview
                       </a>
                     ) : (
-                      'File is not available for preview' // Display this message if preview is not available
+                      'File is not available for preview'
                     )}
                   </td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
@@ -380,20 +315,40 @@ function Documents() {
     backgroundColor: '#ff7f0e',
     color: '#fff',
     border: 'none',
-    padding: '8px 16px', // Adjust these values to match other buttons
+    padding: '8px 16px',
     cursor: 'pointer',
     marginRight: '10px',
     display: 'inline-block',
     textDecoration: 'none',
-    fontSize: '14px' // Adjust this font size if needed
+    fontSize: '14px'
   };
 
   return (
     <div style={{ backgroundColor: '#fff', padding: '20px' }}>
-      <h1 style={{ color: '#444' }}>Documents</h1>
+      <h1 style={{ color: '#444' }}>Documents in {sourceName}</h1>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center' }}>
+        <button onClick={() => navigate('/sources')} style={buttonStyle}>Back to Sources</button>
+        <input type="file" onChange={handleFileChange} style={{ marginRight: '10px' }} />
+        <button onClick={handleUpload} style={uploadButtonStyle}>Upload Document</button>
+        <button onClick={handleSyncSource} style={syncButtonStyle}>Sync Source</button>
+        <a
+          href={`/chat-with-source/${sourceName}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={chatButtonStyle}
+        >
+          Chat with Source
+        </a>
+      </div>
       {message && <p>{message}</p>}
       {isLoading && <p>Loading...</p>}
       {!isLoading && renderDocuments()}
+      {uploadStatus && (
+        <div>
+          <p>{uploadStatus}</p>
+          <progress value={uploadProgress} max="100">{uploadProgress}%</progress>
+        </div>
+      )}
     </div>
   );
 }

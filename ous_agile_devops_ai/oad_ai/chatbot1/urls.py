@@ -8,6 +8,9 @@ urlpatterns = [
     path('saml2/login/', views.custom_login, name='saml2_login'),
     path('', views.search, name='search'),
     path('create-source/', views.create_source, name='create_source'),
+    path('upload_document/<str:source>/', views.upload_document, name='upload_document'),
+    path('check-upload-status/<str:source>/<str:task_id>/', views.check_upload_status_view, name='check_upload_status'),
+
     path('sync-source/<str:source>/', views.sync_source, name='sync_source'),
     path('list-sources/', views.list_sources, name='list_sources'),
     path('list-documents/<str:source>/', views.list_documents, name='list_documents'),
@@ -27,5 +30,6 @@ urlpatterns = [
     path('saml2/logout/', views.custom_logout, name='saml2_logout'),
     path('get-user-token/', views.get_user_token, name='get_user_token'),
     path('delete-source/<str:source>/', views.delete_source, name='delete_source'),
+    #path('delete-source/<str:source>/', views.delete_source, name='delete_source'),
 
 ]
