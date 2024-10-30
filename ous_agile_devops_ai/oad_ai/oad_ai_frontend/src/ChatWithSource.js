@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Header from './Header';
-import ConversationBox from './ConversationBox';
+import ConversationBox from './ConversationBox'; // Import the ConversationBox component
 import InputBox from './InputBox';
 import CopyButton from './CopyButton';
 import './App.css';
@@ -111,14 +111,12 @@ const ChatWithSource = () => {
     return filename.split('#').join('%23'); // Encode `#` character as `%23`
   };
 
-  const chatbotClassName = sourceName === 'public' ? 'Chatbot-public' : 'Chatbot-internal';
-  const conversationBoxClassName = sourceName === 'public' ? 'conversation-box-public' : 'conversation-box-internal';
+  // Removed chatbotClassName and conversationBoxClassName
 
   return (
-    <div className={`Chatbot ${chatbotClassName}`}>
+    <div className="Chatbot">
       <Header title={`Chat with ${sourceName} Bot`} />
       <ConversationBox
-        className={conversationBoxClassName}
         messages={messages}
         isLoading={isLoading}
         conversationBoxRef={conversationBoxRef}

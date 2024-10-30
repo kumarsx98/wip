@@ -4,6 +4,7 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001'; // Change this to your backend URL
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
+
 const getCookie = (name) => {
   let cookieValue = null;
   if (document.cookie && document.cookie !== '') {
@@ -25,7 +26,7 @@ const AutoUploadManager = () => {
   const [uploadDetails, setUploadDetails] = useState([]);
   const [schedulerStatus, setSchedulerStatus] = useState('Not running');
 
-  const autoUploadIntervalRef = useRef(null);
+  const autoUploadTimeoutRef = useRef(null);
   const statusCheckIntervalRef = useRef(null);
 
   const axiosInstance = axios.create({
@@ -40,6 +41,7 @@ const AutoUploadManager = () => {
   // Fetch upload status
   const fetchUploadStatus = async () => {
     try {
+      console.log('Fetching upload status...');
       const response = await axiosInstance.get('/chatbot1/get-upload-status/');
       if (response.data.upload_details) {
         setUploadDetails(response.data.upload_details);
@@ -49,7 +51,7 @@ const AutoUploadManager = () => {
         );
 
         if (hasPendingUploads) {
-          setTimeout(fetchUploadStatus, 3000); // Check every 3 seconds for pending uploads
+          setTimeout(fetchUploadStatus, 30000); // Check every 3 seconds for pending uploads
         }
       }
       return response.data;
@@ -64,39 +66,61 @@ const AutoUploadManager = () => {
   const handleAutoUpload = async () => {
     setIsLoading(true);
     setMessage('Starting auto-upload process...');
+    console.log('Starting auto-upload process...');
     try {
       const response = await axiosInstance.post('/chatbot1/trigger-auto-upload/');
       if (response.data.status === 'success') {
         setMessage(`Auto-upload completed successfully. Processed ${response.data.processed_files || 0} files.`);
+        console.log('Auto-upload completed successfully.');
         await fetchUploadStatus();
       } else {
         setMessage(`Auto-upload completed with some issues: ${response.data.message}`);
+        console.error('Auto-upload completed with some issues:', response.data.message);
       }
     } catch (error) {
       console.error('Error during auto-upload:', error);
       setMessage(`Error during auto-upload: ${error.message}`);
     } finally {
       setIsLoading(false);
+      // Schedule the next auto-upload after 5 minutes
+      if (schedulerStatus === 'Running') {
+        autoUploadTimeoutRef.current = setTimeout(handleAutoUpload, 300000); // 5 minutes
+      }
     }
   };
 
+  // Initial load to fetch status
   useEffect(() => {
     fetchUploadStatus();
   }, []);
 
+  // Manage scheduler
   useEffect(() => {
     if (schedulerStatus === 'Running') {
-      autoUploadIntervalRef.current = setInterval(handleAutoUpload, 600000); // Auto upload every 10 minutes
-      statusCheckIntervalRef.current = setInterval(fetchUploadStatus, 180000); // Check status every 3 minutes
+      // Start the auto-upload process immediately and then every 5 minutes
+      handleAutoUpload();
+
+      // Schedule status check every 30 seconds
+      statusCheckIntervalRef.current = setInterval(fetchUploadStatus, 30000); // 30 seconds
+      console.log('Status-check interval set.');
     } else {
-      clearInterval(autoUploadIntervalRef.current);
-      clearInterval(statusCheckIntervalRef.current);
+      if (autoUploadTimeoutRef.current) {
+        clearTimeout(autoUploadTimeoutRef.current);
+      }
+      if (statusCheckIntervalRef.current) {
+        clearInterval(statusCheckIntervalRef.current);
+      }
+      console.log('Intervals cleared.');
     }
 
     // Cleanup on unmount or status change
     return () => {
-      clearInterval(autoUploadIntervalRef.current);
-      clearInterval(statusCheckIntervalRef.current);
+      if (autoUploadTimeoutRef.current) {
+        clearTimeout(autoUploadTimeoutRef.current);
+      }
+      if (statusCheckIntervalRef.current) {
+        clearInterval(statusCheckIntervalRef.current);
+      }
     };
   }, [schedulerStatus]);
 

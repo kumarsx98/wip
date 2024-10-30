@@ -5,9 +5,6 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
-// testing
-
-
 function Documents() {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,12 +62,11 @@ function Documents() {
 
       if (response.status === 200 && response.data.documents) {
         const docPromises = response.data.documents.documents.map(async (doc) => {
-          const filename = `${sourceName}#${doc.filename}`;
-          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(filename)}`;
+          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(doc.filename)}`;
 
           return {
             ...doc,
-            path: trimPath(`${filename}`),
+            path: trimPath(doc.filename),
             displayName: doc.filename,
             preview_url: previewUrl,
             isPreviewAvailable: await checkPreviewAvailability(previewUrl),
@@ -262,7 +258,7 @@ function Documents() {
                   </td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
                     <button
-                      onClick={() => handleDelete(document.id, document.filename)}
+                      onClick={() => handleDelete(document.id, document.displayName)}
                       style={{ backgroundColor: '#E57373', color: '#fff', border: 'none', padding: '10px', cursor: 'pointer' }}
                     >
                       Delete

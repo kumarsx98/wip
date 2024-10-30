@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from djangosaml2.views import LoginView
 
 urlpatterns = [
-    path('search/', views.api_search, name='api_search'),
+    #path('search/', views.api_search, name='api_search'),
     path('saml2/login/', views.custom_login, name='saml2_login'),
     path('', views.search, name='search'),
     path('create-source/', views.create_source, name='create_source'),
@@ -23,7 +23,7 @@ urlpatterns = [
     path('trigger-auto-upload/', views.trigger_auto_upload, name='trigger-auto-upload'),
     path('get-upload-status/', views.get_upload_status, name='get-upload-status'),
     path('api/v1/sources/<str:source>/delete/', views.delete_source, name='delete_source'),  # Correct endpoint
-    path('api/search/', views.api_search, name='api_search'),
+    #path('api/search/', views.api_search, name='api_search'),
     path('delete-document/<str:source>/<str:document_id>/', views.delete_document, name='delete_document'),
     path('chat-with-source/<str:source_name>/', views.chat_with_source, name='chat-with-source'),
     path('saml2/session/', views.session_status, name='session_status'),

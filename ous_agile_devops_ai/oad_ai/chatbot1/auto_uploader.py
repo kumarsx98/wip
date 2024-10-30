@@ -3,14 +3,13 @@ import time
 import shutil
 import logging
 import urllib.parse
-
-import schedule  # import the schedule library
+import requests
+import schedule
 from django.conf import settings
 from cryptography.fernet import Fernet
-import requests
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from datetime import datetime, timedelta
+from datetime import datetime
 from threading import Semaphore
 
 from .models import UploadRecord
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 ILIAD_URL = settings.ILIAD_URL
 PREVIEW_BASE_URL = settings.PREVIEW_BASE_URL  # URL base for preview
 
-upload_semaphore = Semaphore(10)  # Allow up to 10 concurrent uploads
+upload_semaphore = Semaphore(5)  # Allow up to 5 concurrent uploads
 
 last_request_time = datetime.now()
 
@@ -128,8 +127,8 @@ def delete_existing_document(source, filename):
 def save_file_for_preview(file_path, source):
     try:
         filename = os.path.basename(file_path)
-        # Create a clean filename that matches the working pattern
-        clean_filename = f"{source}#{filename}"
+        # Remove the source name before the file name
+        clean_filename = filename.split('#', 1)[-1]
 
         preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
         if not os.path.exists(preview_dir):
@@ -158,10 +157,11 @@ def upload_document_to_iliad(source, file_path):
                 return None
 
             filename = os.path.basename(file_path)
-            logger.info(f"API Called'{filename}'")
+            clean_filename = filename.split('#', 1)[-1]
+            logger.info(f"API Called'{clean_filename}'")
 
-            if not delete_existing_document(source, filename):
-                logger.error(f"Failed to delete existing document '{filename}' from source '{source}'.")
+            if not delete_existing_document(source, clean_filename):
+                logger.error(f"Failed to delete existing document '{clean_filename}' from source '{source}'.")
                 return None
 
             # Save file for preview with the correct source prefix
@@ -169,9 +169,9 @@ def upload_document_to_iliad(source, file_path):
 
             with open(file_path, 'rb') as file:
                 url = f"{ILIAD_URL}/api/v1/sources/{source.lower()}/documents"
-                files = {"file": (filename, file, 'application/octet-stream')}
+                files = {"file": (clean_filename, file, 'application/octet-stream')}
 
-                logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {filename}")
+                logger.info(f"Sending request to Iliad API: URL: {url}, Headers: {headers}, File: {clean_filename}")
                 response = requests.post(url, headers=headers, files=files)
 
             logger.info(f"Iliad API response for {file_path}: Status {response.status_code}, Content: {response.text}")
@@ -242,12 +242,12 @@ def get_upload_records():
             # Construct the preview URL using the correct pattern
             preview_url = None
             if record.preview_url:
-                filename = f"{record.source}#{os.path.basename(record.file_name)}"
+                filename = record.file_name.split('#', 1)[-1]
                 encoded_filename = urllib.parse.quote(filename)
                 preview_url = f"{PREVIEW_BASE_URL}/media/previews/{encoded_filename}"
 
             updated_records.append({
-                "file_name": record.file_name,
+                "file_name": record.file_name.split('#', 1)[-1],  # Display clean file name
                 "source": record.source,
                 "status": record.status,
                 "task_id": record.task_id,
@@ -259,7 +259,6 @@ def get_upload_records():
     except Exception as e:
         logger.error(f"Error fetching upload records: {str(e)}")
         return []
-
 
 @api_view(['GET'])
 def get_upload_status(request):
@@ -279,7 +278,6 @@ def get_upload_status(request):
             "message": str(e)
         }, status=500)
 
-
 def get_source_from_filename(filename, sources):
     parts = filename.split('#')
     for i in range(1, len(parts) + 1):
@@ -287,7 +285,6 @@ def get_source_from_filename(filename, sources):
         if potential_source in sources:
             return potential_source
     return None
-
 
 def process_documents():
     auto_upload_dir = os.path.join(settings.MEDIA_ROOT, 'auto_upload')
@@ -346,7 +343,7 @@ def process_documents():
                 preview_url = upload_result.get('preview_url')
 
                 record = UploadRecord.objects.create(
-                    file_name=filename,
+                    file_name=filename.split('#', 1)[-1],  # Store clean file name
                     source=source,
                     status=status,
                     task_id=task_id,
@@ -359,7 +356,7 @@ def process_documents():
                         record.save()
 
                 processed_files.append({
-                    "file_name": filename,
+                    "file_name": filename.split('#', 1)[-1],  # Return clean file name
                     "source": source,
                     "status": record.status,
                     "task_id": task_id,
@@ -391,3 +388,13 @@ def process_documents():
 @api_view(['POST'])
 def trigger_auto_upload(request):
     return Response(process_documents())
+
+def run_scheduler():
+    # Scheduler to process documents every 5 minutes
+    schedule.every(5).minutes.do(process_documents)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+if __name__ == "__main__":
+    run_scheduler()

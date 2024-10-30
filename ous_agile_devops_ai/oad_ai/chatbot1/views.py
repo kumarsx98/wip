@@ -193,6 +193,16 @@ def get_api_headers():
     }
 
 
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse
+import requests
+import logging
+#from .utils import get_api_headers
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
 @csrf_exempt
 @require_http_methods(["GET"])
 def list_documents(request, source):
@@ -205,12 +215,15 @@ def list_documents(request, source):
 
         documents = response.json()
 
-        # Add created and modified timestamps if they don't exist
+        # Add created and modified timestamps if they don't exist and strip source prefix from filename
         for doc in documents['documents']:
             if 'created_at' not in doc:
                 doc['created_at'] = doc.get('timestamp') or None
             if 'modified_at' not in doc:
                 doc['modified_at'] = doc.get('timestamp') or None
+
+            # Strip the source prefix from the filename
+            doc['filename'] = doc['filename'].split('#', 1)[-1]
 
         return JsonResponse({'documents': documents})
     except requests.RequestException as e:
@@ -218,11 +231,8 @@ def list_documents(request, source):
         return JsonResponse({'error': 'Failed to fetch documents'}, status=500)
 
 
-import datetime
-import pytz
-from django.utils.timezone import make_aware
 
-# chatbot1/views.py
+
 
 
 @csrf_exempt
@@ -564,91 +574,91 @@ def delete_document(request, source, document_id):
 
 
 
-@csrf_exempt
-def api_search(request):
-    logger.info("api_search view called.")
-
-    if request.method == "POST":
-        try:
-            data = json.loads(request.body)
-            question = data.get('question')
-            mysource = data.get('mysource')
-            filters = data.get('filters', {})
-
-            logger.info(f"Received POST data: {data}")
-
-            # Decrypt the API key
-            try:
-                encryption_key = settings.ENCRYPTION_KEY.encode()
-                encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
-                cipher_suite = Fernet(encryption_key)
-                api_key = cipher_suite.decrypt(encrypted_api_key).decode()
-            except Exception as e:
-                logger.error(f"Decryption failed: {e}")
-                return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
-
-            # Determine the source
-            if mysource == 'public':
-                source = 'oad-public'
-            elif mysource == 'internal':
-                source = 'oad-internal'
-            else:
-                logger.error(f"Invalid source provided: {mysource}")
-                return JsonResponse({'error': 'Invalid source'}, status=400)
-
-            # Set up the API request
-            ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
-            headers = {
-                "x-api-key": api_key,
-                "x-user-token": settings.AUTH_TOKEN
-            }
-            payload = {
-                "messages": [{"role": "user", "content": question}],
-                "filters": json.dumps(filters)
-            }
-
-            url = f"{ILIAD_URL}/api/v1/sources/{source}/rag"
-
-            logger.info(f"Sending request to {url}")
-            logger.info(f"Request headers: {headers}")
-            logger.info(f"Request payload: {payload}")
-
-            # Send the request to the external API
-            resp = requests.post(
-                url=url,
-                headers=headers,
-                json=payload
-            )
-
-            logger.info(f"API response status code: {resp.status_code}")
-            logger.info(f"API response body: {resp.text}")
-
-            if resp.status_code == 200:
-                response_data = resp.json()
-                content = response_data.get('content', 'No content in API response')
-                references = response_data.get('references', [])
-                logger.info(f"API Response content: {content}")
-                logger.info(f"API Response references: {references}")
-                response = {'content': content, 'references': references}
-            else:
-                logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
-                return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"}, status=500)
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request exception: {e}")
-            return JsonResponse({'error': str(e)}, status=500)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}")
-            return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            logger.error(traceback.format_exc())
-            return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
-
-        return JsonResponse({'question': question, 'response': response})
-
-    logger.warning("Invalid HTTP method used.")
-    return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
+# @csrf_exempt
+# def api_search(request):
+#     logger.info("api_search view called.")
+#
+#     if request.method == "POST":
+#         try:
+#             data = json.loads(request.body)
+#             question = data.get('question')
+#             mysource = data.get('mysource')
+#             filters = data.get('filters', {})
+#
+#             logger.info(f"Received POST data: {data}")
+#
+#             # Decrypt the API key
+#             try:
+#                 encryption_key = settings.ENCRYPTION_KEY.encode()
+#                 encrypted_api_key = settings.ENCRYPTED_API_KEY.encode()
+#                 cipher_suite = Fernet(encryption_key)
+#                 api_key = cipher_suite.decrypt(encrypted_api_key).decode()
+#             except Exception as e:
+#                 logger.error(f"Decryption failed: {e}")
+#                 return JsonResponse({'error': 'Failed to decrypt API key'}, status=500)
+#
+#             # Determine the source
+#             if mysource == 'public':
+#                 source = 'oad-public'
+#             elif mysource == 'internal':
+#                 source = 'oad-internal'
+#             else:
+#                 logger.error(f"Invalid source provided: {mysource}")
+#                 return JsonResponse({'error': 'Invalid source'}, status=400)
+#
+#             # Set up the API request
+#             ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
+#             headers = {
+#                 "x-api-key": api_key,
+#                 "x-user-token": settings.AUTH_TOKEN
+#             }
+#             payload = {
+#                 "messages": [{"role": "user", "content": question}],
+#                 "filters": json.dumps(filters)
+#             }
+#
+#             url = f"{ILIAD_URL}/api/v1/sources/{source}/rag"
+#
+#             logger.info(f"Sending request to {url}")
+#             logger.info(f"Request headers: {headers}")
+#             logger.info(f"Request payload: {payload}")
+#
+#             # Send the request to the external API
+#             resp = requests.post(
+#                 url=url,
+#                 headers=headers,
+#                 json=payload
+#             )
+#
+#             logger.info(f"API response status code: {resp.status_code}")
+#             logger.info(f"API response body: {resp.text}")
+#
+#             if resp.status_code == 200:
+#                 response_data = resp.json()
+#                 content = response_data.get('content', 'No content in API response')
+#                 references = response_data.get('references', [])
+#                 logger.info(f"API Response content: {content}")
+#                 logger.info(f"API Response references: {references}")
+#                 response = {'content': content, 'references': references}
+#             else:
+#                 logger.error(f"API request failed with status code: {resp.status_code}, Response: {resp.text}")
+#                 return JsonResponse({'error': f"API request failed with status code: {resp.status_code}"}, status=500)
+#
+#         except requests.exceptions.RequestException as e:
+#             logger.error(f"Request exception: {e}")
+#             return JsonResponse({'error': str(e)}, status=500)
+#         except json.JSONDecodeError as e:
+#             logger.error(f"JSON decode error: {e}")
+#             return JsonResponse({'error': 'Invalid JSON in request body'}, status=400)
+#         except Exception as e:
+#             logger.error(f"Unexpected error: {e}")
+#             logger.error(traceback.format_exc())
+#             return JsonResponse({'error': 'An unexpected error occurred'}, status=500)
+#
+#         return JsonResponse({'question': question, 'response': response})
+#
+#     logger.warning("Invalid HTTP method used.")
+#     return JsonResponse({'error': 'Invalid HTTP method'}, status=405)
 
 
 @csrf_exempt

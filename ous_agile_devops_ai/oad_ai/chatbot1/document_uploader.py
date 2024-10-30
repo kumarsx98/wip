@@ -52,8 +52,8 @@ def delete_existing_document(source, document_id):
 
 def save_file_for_preview(source, file):
     filename = file.name
-    # Create a clean filename that matches the working pattern
-    clean_filename = f"{source}#{filename}"
+    # Remove the source name before the file name
+    clean_filename = filename.split('#', 1)[-1]
 
     preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
     if not os.path.exists(preview_dir):
