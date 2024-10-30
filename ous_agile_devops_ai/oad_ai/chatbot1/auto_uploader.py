@@ -127,8 +127,7 @@ def delete_existing_document(source, filename):
 def save_file_for_preview(file_path, source):
     try:
         filename = os.path.basename(file_path)
-        # Remove the source name before the file name
-        clean_filename = filename.split('#', 1)[-1]
+        clean_filename = f"{source.lower()}#{filename.split('#')[-1]}"
 
         preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
         if not os.path.exists(preview_dir):
@@ -137,7 +136,6 @@ def save_file_for_preview(file_path, source):
         new_file_path = os.path.join(preview_dir, clean_filename)
         shutil.copy(file_path, new_file_path)
 
-        # Construct preview URL using the correct pattern
         encoded_filename = urllib.parse.quote(clean_filename)
         preview_url = f"{PREVIEW_BASE_URL}/media/previews/{encoded_filename}"
 
@@ -164,7 +162,6 @@ def upload_document_to_iliad(source, file_path):
                 logger.error(f"Failed to delete existing document '{clean_filename}' from source '{source}'.")
                 return None
 
-            # Save file for preview with the correct source prefix
             preview_url = save_file_for_preview(file_path, source.lower())
 
             with open(file_path, 'rb') as file:
@@ -239,7 +236,6 @@ def get_upload_records():
                     record.status = status_result['status']
                     record.save()
 
-            # Construct the preview URL using the correct pattern
             preview_url = None
             if record.preview_url:
                 filename = record.file_name.split('#', 1)[-1]

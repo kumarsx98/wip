@@ -5,6 +5,7 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
+
 function createMarkup(html) {
   return { __html: html };
 }
@@ -25,18 +26,19 @@ function Message({ message, isLoading, index, messages, source }) {
   useEffect(() => {
     const checkFiles = async () => {
       const status = {};
-      for (const filename of message.filenames) {
-        const url = `${baseURL}/media/previews/${encodeURIComponent(filename)}`;
-        const exists = await checkFileExists(url);
-        status[filename] = exists;
+      if (message.references) {
+        for (const ref of message.references) {
+          const exists = await checkFileExists(ref.preview_url);
+          status[ref.preview_url] = exists;
+        }
       }
       setFileStatus(status);
     };
 
-    if (message.filenames && message.filenames.length > 0) {
+    if (message.references && message.references.length > 0) {
       checkFiles();
     }
-  }, [message.filenames]);
+  }, [message.references]);
 
   return (
     <div className={messageClass}>
@@ -45,12 +47,12 @@ function Message({ message, isLoading, index, messages, source }) {
       ))}
       {message.sender === 'bot' && message.copyButton && (
         <div>
-          {message.filenames && message.filenames.length > 0 && (
+          {message.references && message.references.length > 0 && (
             <p className="filenames">
-              Found in: {message.filenames.map((filename, i) => (
-                fileStatus[filename] ?
-                <a key={i} href={`${baseURL}/media/previews/${encodeURIComponent(filename)}`} target="_blank" rel="noopener noreferrer">{filename}</a> :
-                <span key={i}>{filename} (File preview is not available)</span>
+              Found in: {message.references.map((ref, i) => (
+                fileStatus[ref.preview_url] ?
+                  <a key={i} href={ref.preview_url} target="_blank" rel="noopener noreferrer">{ref.filename}</a> :
+                  <span key={i}>{ref.filename} (File preview is not available)</span>
               ))}
             </p>
           )}

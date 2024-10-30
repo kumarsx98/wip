@@ -4,11 +4,11 @@ import axios from 'axios';
 import Header from './Header';
 import ConversationBox from './ConversationBox'; // Import the ConversationBox component
 import InputBox from './InputBox';
-import CopyButton from './CopyButton';
 import './App.css';
 
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
+
 
 const ChatWithSource = () => {
   const { sourceName } = useParams();
@@ -50,14 +50,29 @@ const ChatWithSource = () => {
         responseContent = response.data.error;
       }
 
-      let formattedContent = formatResponse(responseContent);
+      const formattedReferences = response.data.response.references ? response.data.response.references.map((ref) => {
+        // Use sourceName from the URL and filename to construct the preview URL
+        const source = sourceName;
+        const filename = ref.filename || 'undefined';
+
+        console.log(`Source: ${source}, Filename: ${filename}`);
+
+        // Encode the source#filename for the URL
+        const previewURL = `${baseURL}/media/previews/${encodeURIComponent(`${source}#${filename}`)}`;
+        console.log(`Formatted URL: ${previewURL}`); // Log the formatted URL
+
+        return {
+          ...ref,
+          preview_url: previewURL,
+        };
+      }) : [];
 
       const botMessage = {
-        text: formattedContent,
+        text: formatResponse(responseContent),
         sender: 'bot',
         copyButton: true,
-        filenames: response.data.response.references ? response.data.response.references.map((ref) => ref.filename) : [],
-        references: response.data.response.references,
+        filenames: formattedReferences.map((ref) => ref.filename),
+        references: formattedReferences,
       };
 
       setMessages((prevMessages) => [...prevMessages, botMessage]);
@@ -91,9 +106,12 @@ const ChatWithSource = () => {
     const urlRegex = /go\/([^\s]+)/g;
     const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/g;
 
-    response = response.replace(linkRegex, (match, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
-    response = response.replace(urlRegex, (match, sometext) => `<a href="http://go/${sometext}" target="_blank" rel="noopener noreferrer">go/${sometext}</a>`);
-    response = response.replace(emailRegex, (match, email) => `<a href="mailto:${email}">${email}</a>`);
+    response = response.replace(linkRegex, (match, url) =>
+        `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+    response = response.replace(urlRegex, (match, sometext) =>
+        `<a href="http://go/${sometext}" target="_blank" rel="noopener noreferrer">go/${sometext}</a>`);
+    response = response.replace(emailRegex, (match, email) =>
+        `<a href="mailto:${email}">${email}</a>`);
 
     return response;
   };
@@ -102,16 +120,6 @@ const ChatWithSource = () => {
     e.preventDefault();
     sendMessage();
   };
-
-  const createMarkup = (html) => {
-    return { __html: html };
-  };
-
-  const encodeFilename = (filename) => {
-    return filename.split('#').join('%23'); // Encode `#` character as `%23`
-  };
-
-  // Removed chatbotClassName and conversationBoxClassName
 
   return (
     <div className="Chatbot">

@@ -5,6 +5,7 @@ import axios from 'axios';
 //const baseURL = 'http://localhost:8001'; // Define your backend base URL here
 const baseURL = 'http://oad-ai.abbvienet.com:8001';
 
+
 function Documents() {
   const [documents, setDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +39,7 @@ function Documents() {
 
   const checkPreviewAvailability = async (previewUrl) => {
     try {
-      await axios.get(previewUrl);
+      await axios.head(previewUrl);
       return true;
     } catch (error) {
       return false;
@@ -60,7 +61,8 @@ function Documents() {
 
       if (response.status === 200 && response.data.documents) {
         const docPromises = response.data.documents.documents.map(async (doc) => {
-          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(doc.filename)}`;
+          const filename = `${source}#${doc.filename}`;
+          const previewUrl = `${baseURL}/media/previews/${encodeURIComponent(filename)}`;
 
           return {
             ...doc,

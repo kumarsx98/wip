@@ -25,7 +25,6 @@ API_KEY = fernet.decrypt(ENCRYPTED_API_KEY.encode()).decode()
 # Setting the ILIAD URL
 ILIAD_URL = "https://api-epic.ir-gateway.abbvienet.com/iliad"
 
-
 def get_api_headers():
     headers = {
         "x-api-key": API_KEY,
@@ -34,7 +33,6 @@ def get_api_headers():
     }
     logger.info(f"Generated headers: {json.dumps(headers, indent=4)}")
     return headers
-
 
 def delete_existing_document(source, document_id):
     try:
@@ -49,29 +47,27 @@ def delete_existing_document(source, document_id):
     except requests.RequestException as e:
         logger.error(f"Error deleting document '{document_id}': {str(e)}")
 
-
 def save_file_for_preview(source, file):
-    filename = file.name
-    # Remove the source name before the file name
+    # Construct the filename with source#filename format
+    filename = f"{source}#{file.name}"
     clean_filename = filename.split('#', 1)[-1]
 
     preview_dir = os.path.join(settings.MEDIA_ROOT, 'previews')
     if not os.path.exists(preview_dir):
         os.makedirs(preview_dir)
 
-    new_file_path = os.path.join(preview_dir, clean_filename)
+    new_file_path = os.path.join(preview_dir, filename)
 
     with default_storage.open(new_file_path, 'wb+') as destination:
         for chunk in file.chunks():
             destination.write(chunk)
 
     # Construct preview URL using the correct pattern
-    encoded_filename = urllib.parse.quote(clean_filename)
+    encoded_filename = urllib.parse.quote(filename)
     preview_url = f"{settings.MEDIA_URL}previews/{encoded_filename}"
 
     logger.info(f"Saved file for preview: {new_file_path}, URL: {preview_url}")
     return preview_url
-
 
 def upload_document_to_iliad(source, file):
     try:
@@ -102,7 +98,6 @@ def upload_document_to_iliad(source, file):
 
     except requests.RequestException as e:
         return {"status": "error", "message": str(e)}
-
 
 def check_upload_status(source, task_id, max_retries=3, delay=10):
     for attempt in range(max_retries):
@@ -146,7 +141,6 @@ def check_upload_status(source, task_id, max_retries=3, delay=10):
         "full_response": {"status": "PENDING"}
     }
 
-
 def get_sources_from_iliad():
     try:
         headers = get_api_headers()
@@ -171,7 +165,6 @@ def get_sources_from_iliad():
         logger.error(f"Error fetching sources from Iliad API: {str(e)}")
         return []
 
-
 def get_documents_from_iliad(source):
     try:
         headers = get_api_headers()
@@ -187,7 +180,6 @@ def get_documents_from_iliad(source):
     except requests.RequestException as e:
         logger.error(f"Error fetching documents from Iliad API: {str(e)}")
         return []
-
 
 def upload_and_verify(source, file):
     upload_result = upload_document_to_iliad(source, file)

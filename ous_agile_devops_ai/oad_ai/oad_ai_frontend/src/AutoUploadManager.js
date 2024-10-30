@@ -220,11 +220,14 @@ const AutoUploadManager = () => {
                 {formatTimestamp(detail.timestamp)}
               </td>
               <td style={{ border: '1px solid white', padding: '8px' }}>
-                {detail.preview_url ? (
-                  <a href={detail.preview_url} target="_blank" rel="noopener noreferrer" style={{ color: '#00BFFF', textDecoration: 'underline' }}>
-                    View Preview
-                  </a>
-                ) : 'Not available'}
+                <a
+                  href={`${baseURL}/media/previews/${encodeURIComponent(`${detail.source}#${detail.file_name}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#00BFFF', textDecoration: 'underline' }}
+                >
+                  View Preview
+                </a>
               </td>
             </tr>
           ))}
