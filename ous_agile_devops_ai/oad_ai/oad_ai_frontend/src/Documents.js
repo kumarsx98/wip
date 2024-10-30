@@ -17,8 +17,6 @@ function Documents() {
   const { sourceName } = useParams();
   const navigate = useNavigate();
 
-  const trimPath = (path) => path.replace('/chatbot1/media/documents/', '');
-
   const handleSort = (field) => {
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -66,7 +64,6 @@ function Documents() {
 
           return {
             ...doc,
-            path: trimPath(doc.filename),
             displayName: doc.filename,
             preview_url: previewUrl,
             isPreviewAvailable: await checkPreviewAvailability(previewUrl),
@@ -227,12 +224,6 @@ function Documents() {
                 >
                   Filename {sortField === 'filename' && (sortDirection === 'asc' ? '▲' : '▼')}
                 </th>
-                <th
-                  style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left', cursor: 'pointer' }}
-                  onClick={() => handleSort('path')}
-                >
-                  Path {sortField === 'path' && (sortDirection === 'asc' ? '▲' : '▼')}
-                </th>
                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Preview</th>
                 <th style={{ border: '1px solid #dee2e6', padding: '12px', textAlign: 'left' }}>Delete</th>
               </tr>
@@ -241,7 +232,6 @@ function Documents() {
               {sortDocuments(documents).map((document, index) => (
                 <tr key={document.id || index} style={{ backgroundColor: '#fff' }}>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.displayName}</td>
-                  <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>{document.path}</td>
                   <td style={{ border: '1px solid #dee2e6', padding: '12px' }}>
                     {document.isPreviewAvailable ? (
                       <a
